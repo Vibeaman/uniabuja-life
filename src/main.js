@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildWorld, makeLabel } from './world.js';
 import { makeCharacter, animateWalk } from './character.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
+import { STORIES, storyById, storyStep, resolveAt, storyActions, storyAdvance } from './stories.js';
 import { CHOW, CHOW_FEE, chowAction, GIGS, todaysGigs, gistFeed, matricNo, degreeClass } from './apps.js';
 import { FACULTIES, AREAS, CAMPUS_FARE, CAMPUS_RIDE_MINS, WEEKDAYS, timetable } from './campus.js';
 import { ROADS_Z } from './world.js';
@@ -295,9 +296,9 @@ let panelSig = '';
 function renderPanel(force = false) {
   if (!panelOpen) return;
   const L = panelLoc;
-  const list = ACTIONS[L.actions];
+  const list = [...storyActions(state, L.id), ...ACTIONS[L.actions]];
   const statuses = list.map((a) => actionStatus(state, a));
-  const sig = statuses.map((s) => s.ok + (s.reason || '')).join('|') + state.pantry;
+  const sig = statuses.map((s) => s.ok + (s.reason || '')).join('|') + state.pantry + (state.story ? state.story.id + state.story.step : '');
   if (!force && sig === panelSig) return;
   panelSig = sig;
   $('panel-title').textContent = L.name;
@@ -307,7 +308,7 @@ function renderPanel(force = false) {
   list.forEach((a, i) => {
     const st = statuses[i];
     const b = document.createElement('button');
-    b.className = 'action';
+    b.className = 'action' + (a.storyOpt !== undefined ? ' story' : '');
     b.disabled = !st.ok;
     const strong = document.createElement('b');
     strong.textContent = a.label;
@@ -349,7 +350,10 @@ async function doAction(a) {
   fade(false);
   toast(res.msg, res.kind);
   busy = false;
-  if (state.day * 1440 + state.minutes > t0) applyRewards(track(state, { type: 'action', ...a, here }));
+  if (state.day * 1440 + state.minutes > t0) {
+    applyRewards(track(state, { type: 'action', ...a, here }));
+    if (a.storyOpt !== undefined) { applyRewards(storyAdvance(state, a.storyOpt)); renderPanel(true); }
+  }
   save();
 }
 
@@ -552,7 +556,7 @@ function updateGuide() {
   if (t !== guideText) $('guide').textContent = guideText = t;
 }
 
-const APPS = [['missions', 'Missions', '#ef4444'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
+const APPS = [['missions', 'Missions', '#ef4444'], ['stories', 'Stories', '#f59e0b'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
 const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
 let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
@@ -600,6 +604,19 @@ function renderPhone() {
         return `<div class="ph-mission ${m.done ? 'done' : ''}"><div><b>${d.label}</b><small>${d.desc}</small>${bar(m.prog / d.goal)}</div><span>${m.done ? 'Done' : prog}<small>+${fmtMoney(d.money)} · +${d.rep} Rep</small></span></div>`;
       }).join('') +
       `<p class="ph-sub">Finish all three: +${fmtMoney(BONUS.money)} · +${BONUS.rep} Rep${state.ms.bonus ? ' (claimed)' : ''}</p>`;
+  } else if (phoneApp === 'stories') {
+    let cur = '<p class="ph-sub">Pick a story. You can follow one at a time.</p>';
+    const st = storyStep(state);
+    if (st) {
+      const S = storyById(state.story.id), at = resolveAt(state, st.at), L = locById(at), A = AREAS.find((x) => x.id === at);
+      cur = `<div class="ph-card"><b>${esc(S.title)}</b><small>Step ${state.story.step + 1} of ${S.steps.length}</small><small>${esc(st.hint)}</small></div>` +
+        (L ? `<button class="ph-row ph-btn" data-guide="${L.id}"><span>Get directions to ${esc(L.name)}</span><b>›</b></button>` : `<p class="ph-sub">Take a keke to ${esc(A?.name || '')}.</p>`) +
+        '<button class="ph-row ph-btn" data-story="quit"><span>Abandon this story</span><b>✕</b></button>';
+    }
+    h = head('Campus Stories') + cur + STORIES.map((S) => {
+      const done = state.storiesDone?.includes(S.id), on = state.story?.id === S.id;
+      return `<button class="ph-row ph-btn" data-story="${S.id}" ${done || state.story ? 'disabled' : ''}><span>${esc(S.title)}<small>${esc(S.blurb)}</small></span><b>${done ? 'Done' : on ? 'Active' : 'Start'}</b></button>`;
+    }).join('');
   } else if (phoneApp === 'chow') {
     h = head('Chow') + `<p class="ph-sub">Food delivered to you anywhere on campus or at your lodge. Delivery fee ${fmtMoney(CHOW_FEE)}, about 40 minutes.</p>` +
       CHOW.map((c, i) => {
@@ -685,6 +702,12 @@ $('phone-screen').addEventListener('click', (e) => {
   else if (b.dataset.chow) { closePhone(); doAction(chowAction(+b.dataset.chow)); }
   else if (b.dataset.gig) { closePhone(); doAction(GIGS.find((g) => g.id === b.dataset.gig)); }
   else if (b.dataset.bank) bank(b.dataset.bank);
+  else if (b.dataset.guide) { const L = locById(b.dataset.guide); guideTo(L); closePhone(); toast(`Directions set to ${L.name}. Follow the yellow arrow.`); }
+  else if (b.dataset.story) {
+    if (b.dataset.story === 'quit') { state.story = null; toast('Story abandoned.', 'warn'); }
+    else { const S = storyById(b.dataset.story); state.story = { id: S.id, step: 0 }; toast(`Story started: ${S.title}. ${S.steps[0].hint}`, 'good'); }
+    renderPhone(); renderPanel(true); save();
+  }
   else if (b.dataset.tab) { mapTab = b.dataset.tab; renderPhone(); }
   else if (b.dataset.q) { realQ = b.dataset.q; renderPhone(); }
 });
