@@ -4,6 +4,7 @@ import { makeCharacter, animateWalk } from './character.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
 import { FACULTIES, AREAS, CAMPUS_FARE, CAMPUS_RIDE_MINS, WEEKDAYS, timetable } from './campus.js';
 import { ROADS_Z } from './world.js';
+import { ensureDay, track, level, missionDef, STREAK_REWARDS, BONUS } from './missions.js';
 
 const $ = (id) => document.getElementById(id);
 const GAME_MIN_PER_SEC = 1.5;
@@ -275,6 +276,7 @@ function chat(n) {
   advance(state, 10, {}, notify);
   state.social = clamp(state.social + 6, 0, 100);
   toast(`${n.name}: "${LINES[Math.floor(Math.random() * LINES.length)]}"  (+6 Social)`);
+  applyRewards(track(state, { type: 'chat' }));
 }
 
 const FX_NAMES = { energy: 'Energy', hunger: 'Food', social: 'Social', knowledge: 'Test prep', hygiene: 'Hygiene', bladder: 'Bladder' };
@@ -334,7 +336,7 @@ function closePanel() {
 async function doAction(a) {
   if (a.ride) return rideKeke(a.ride);
   if (busy) return;
-  const before = state.money;
+  const before = state.money, t0 = state.day * 1440 + state.minutes, here = state.here;
   busy = true;
   fade(true, `${a.label}…`);
   await sleep(850);
@@ -346,6 +348,7 @@ async function doAction(a) {
   fade(false);
   toast(res.msg, res.kind);
   busy = false;
+  if (state.day * 1440 + state.minutes > t0) applyRewards(track(state, { type: 'action', ...a, here }));
   save();
 }
 
@@ -522,6 +525,7 @@ async function rideKeke(dest) {
   renderHud();
   fade(false);
   toast(`You arrived at ${name}.`, 'good');
+  applyRewards(track(state, { type: 'ride' }));
   save();
 }
 
@@ -547,7 +551,7 @@ function updateGuide() {
   if (t !== guideText) $('guide').textContent = guideText = t;
 }
 
-const APPS = [['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['wallet', 'Wallet', '#a855f7'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
+const APPS = [['missions', 'Missions', '#ef4444'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['wallet', 'Wallet', '#a855f7'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
 const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
 let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
@@ -582,6 +586,19 @@ function renderPhone() {
       (state.tx.length ? state.tx.map((t) => `<div class="ph-row"><span>${esc(t.label)}<small>${t.t}</small></span><b class="${t.amt < 0 ? 'neg' : 'pos'}">${t.amt < 0 ? '−' : '+'}${fmtMoney(Math.abs(t.amt))}</b></div>`).join('') : '<p class="ph-sub">No transactions yet.</p>');
   } else if (phoneApp === 'messages') {
     h = head('Messages') + (state.inbox.length ? state.inbox.map((m) => `<div class="ph-row"><span>${esc(m.msg)}<small>${m.t}</small></span></div>`).join('') : '<p class="ph-sub">No messages yet.</p>');
+  } else if (phoneApp === 'missions') {
+    const L = level(state.rep), lit = ((state.streak - 1) % 7) + 1;
+    const bar = (f) => `<div class="ph-bar-p"><i style="width:${Math.round(Math.min(1, f) * 100)}%"></i></div>`;
+    h = head('Missions') + `<div class="ph-bal">Lv ${L.idx} · ${L.name}<small>${state.rep} Rep${L.next ? ` · ${L.next - state.rep} to next level` : ' · max level'}</small>${bar(L.pct)}</div>` +
+      `<p class="ph-sub">Check-in streak: ${state.streak} day${state.streak === 1 ? '' : 's'}. Come back every day.</p>` +
+      `<div class="ph-streak">${STREAK_REWARDS.map((m, i) => `<span class="${i < lit ? 'on' : ''}">D${i + 1}<small>₦${m >= 1000 ? m / 1000 + 'k' : m}</small></span>`).join('')}</div>` +
+      `<p class="ph-sub"><b>Today's missions</b> · new ones every day</p>` +
+      state.ms.list.map((m) => {
+        const d = missionDef(m.id);
+        const prog = d.unit === '₦' ? `${fmtMoney(m.prog)}/${fmtMoney(d.goal)}` : d.unit === 'm' ? `${m.prog}/${d.goal} min` : `${m.prog}/${d.goal}`;
+        return `<div class="ph-mission ${m.done ? 'done' : ''}"><div><b>${d.label}</b><small>${d.desc}</small>${bar(m.prog / d.goal)}</div><span>${m.done ? 'Done' : prog}<small>+${fmtMoney(d.money)} · +${d.rep} Rep</small></span></div>`;
+      }).join('') +
+      `<p class="ph-sub">Finish all three: +${fmtMoney(BONUS.money)} · +${BONUS.rep} Rep${state.ms.bonus ? ' (claimed)' : ''}</p>`;
   } else if (phoneApp === 'online') {
     h = head('Online') + `<div class="ph-bal">${online ?? 1}<small>${online ? 'players online now' : 'Offline mode: multiplayer server not connected yet'}</small></div><p class="ph-sub">Once the game is hosted with the presence server, this shows everyone playing UniAbuja Life.</p>`;
   } else if (phoneApp === 'map') {
@@ -593,6 +610,18 @@ function renderPhone() {
   scr.innerHTML = h;
   if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap();
 }
+function applyRewards(list) {
+  for (const r of list) { if (r.money) logTx(r.label, r.money); notify(r.msg, 'good'); }
+  if (list.length) { renderHud(); renderMissionChip(); if (phoneApp) renderPhone(); save(); }
+}
+function renderMissionChip() {
+  const chip = $('mission-chip');
+  chip.classList.toggle('hidden', !state?.ms);
+  if (!state?.ms) return;
+  const done = state.ms.list.filter((m) => m.done).length, L = level(state.rep);
+  chip.innerHTML = `<b>Today's Missions ${done}/3</b><small>Lv ${L.idx} · ${L.name} · streak ${state.streak}</small>`;
+}
+$('mission-chip').onclick = () => openPhone('missions');
 const MAP_R = 112;
 function drawPhoneMap() {
   const c = $('ph-map');
@@ -736,6 +765,8 @@ function loop() {
   hudTimer += dt;
   if (hudTimer > 0.25 && state) {
     hudTimer = 0; renderHud(); renderPanel(); drawMinimap();
+    applyRewards(ensureDay(state));
+    renderMissionChip();
     if (phoneApp) { $('phone-time').textContent = fmtTime(state.minutes); if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap(); }
   }
   saveTimer += dt;
