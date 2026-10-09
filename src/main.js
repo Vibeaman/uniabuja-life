@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { buildWorld, makeLabel } from './world.js';
-import { makeCharacter, animateWalk } from './character.js';
+import { makeCharacter, animateWalk, applyCharacterAppearance } from './character.js';
+import { OUTFITS, HAIRSTYLES, SKIN_TONES, ensureWardrobe, changeAppearance, outfitById } from './wardrobe.js';
+import { drawAvatarPreview } from './preview.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
 import { STORIES, storyById, storyStep, resolveAt, storyActions, storyAdvance } from './stories.js';
 import { CHOW, CHOW_FEE, chowAction, GIGS, todaysGigs, gistFeed, matricNo, degreeClass } from './apps.js';
@@ -484,6 +486,7 @@ function migrate(s) {
   s.faculty ??= 'science'; s.dept ??= 'Computer Science'; s.deptCode ??= 'CSC';
   if (!locById(s.residence) && !AREAS.some((A) => A.id === s.residence)) s.residence = 'hostel-ob';
   s.inbox ??= []; s.tx ??= []; s.away ??= null; s.hygiene ??= 80; s.bladder ??= 80; s.savings ??= 0;
+  ensureWardrobe(s);
 }
 
 function logTx(label, amt) {
@@ -558,6 +561,8 @@ function updateGuide() {
 
 const APPS = [['missions', 'Missions', '#ef4444'], ['stories', 'Stories', '#f59e0b'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
 const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
+APPS.unshift(['wardrobe', 'Wardrobe', '#a78bfa']);
+let avatarRotation = 0;
 let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
 function openPhone(app = 'home') {
@@ -575,6 +580,19 @@ function renderPhone() {
   let h = '';
   if (phoneApp === 'home') {
     h = `<div class="ph-greet">Hi ${esc(state.name)}<small>${esc(state.dept)} · ${fac}</small></div><div class="ph-grid">${APPS.map(([id, n, c]) => `<button class="ph-app" data-app="${id}"><i style="background:${c}">${n[0]}</i>${n}</button>`).join('')}</div>`;
+  } else if (phoneApp === 'wardrobe') {
+    ensureWardrobe(state);
+    const a = state.appearance;
+    h = head('Wardrobe') + '<div id="avatar-preview" class="custom-preview"></div>' +
+      '<div class="ph-chips"><button data-turn="-1" aria-label="Turn character left">↶ Turn</button><button data-turn="1" aria-label="Turn character right">Turn ↷</button></div>' +
+      `<p class="ph-sub">${esc(outfitById(a.outfit).name)} · Changes appear on your campus character and save automatically.</p><h3 class="ph-section">Outfits</h3>` +
+      OUTFITS.map((o) => {
+        const owned = state.ownedOutfits.includes(o.id), wearing = a.outfit === o.id;
+        return `<button class="ph-row ph-btn ${wearing ? 'selected' : ''}" data-outfit="${o.id}" aria-pressed="${wearing}" ${wearing || (!owned && state.money < o.price) ? 'disabled' : ''}><span><i class="fabric-swatch ${o.pattern || ''}" style="--fabric:${o.shirt}"></i>${o.name}<small>${wearing ? 'Wearing' : owned ? 'Owned · wear for free' : 'Buy once, keep forever'}</small></span><b>${wearing ? 'On' : owned ? 'Wear' : fmtMoney(o.price)}</b></button>`;
+      }).join('') + '<h3 class="ph-section">Hair · free</h3><div class="ph-chips">' +
+      HAIRSTYLES.map((o) => `<button data-hair="${o.id}" class="${a.hair === o.id ? 'on' : ''}" aria-pressed="${a.hair === o.id}">${o.name}</button>`).join('') +
+      '</div><h3 class="ph-section">Skin tone · free</h3><div class="ph-chips">' +
+      SKIN_TONES.map((o) => `<button data-skin="${o.id}" class="${a.skin === o.id ? 'on' : ''}" aria-pressed="${a.skin === o.id}"><i class="skin-swatch" style="background:${o.color}"></i>${o.name}</button>`).join('') + '</div>';
   } else if (phoneApp === 'timetable') {
     const today = (state.day - 1) % 7;
     h = head('Timetable') + `<p class="ph-sub">${esc(state.dept)} · 100 Level</p>` +
@@ -651,6 +669,7 @@ function renderPhone() {
         : `<div class="ph-chips">${REAL.map(([n, q]) => `<button data-q="${esc(q)}" class="${q === realQ ? 'on' : ''}">${n}</button>`).join('')}</div><iframe class="ph-iframe" loading="lazy" src="https://maps.google.com/maps?q=${encodeURIComponent(realQ)}&z=14&output=embed" title="Google Map"></iframe><p class="ph-sub">Real Google Map of the area. The 3D campus is not to scale yet.</p>`);
   }
   scr.innerHTML = h;
+  if (phoneApp === 'wardrobe') drawAvatarPreview($('avatar-preview'), state.appearance, avatarRotation);
   if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap();
 }
 function applyRewards(list) {
@@ -697,7 +716,18 @@ function drawPhoneMap() {
 $('phone-screen').addEventListener('click', (e) => {
   const b = e.target.closest('button');
   if (!b) return;
+  if (b.disabled || busy) return;
   if (b.dataset.app) { phoneApp = b.dataset.app; renderPhone(); }
+  else if (b.dataset.outfit || b.dataset.hair || b.dataset.skin) {
+    const category = b.dataset.outfit ? 'outfit' : b.dataset.hair ? 'hair' : 'skin';
+    const id = b.dataset[category], res = changeAppearance(state, category, id);
+    if (!res.ok) return toast(res.msg, 'bad');
+    if (res.cost) logTx(`Outfit: ${outfitById(id).name}`, -res.cost);
+    applyCharacterAppearance(player, state.appearance);
+    renderHud(); renderPhone(); renderPanel(true); save();
+    if (res.changed) toast(res.msg, 'good');
+  }
+  else if (b.dataset.turn) { avatarRotation += Number(b.dataset.turn) * Math.PI / 4; drawAvatarPreview($('avatar-preview'), state.appearance, avatarRotation); }
   else if (b.dataset.ride) rideKeke(b.dataset.ride);
   else if (b.dataset.chow) { closePhone(); doAction(chowAction(+b.dataset.chow)); }
   else if (b.dataset.gig) { closePhone(); doAction(GIGS.find((g) => g.id === b.dataset.gig)); }
@@ -752,6 +782,7 @@ setInterval(() => state && pingPresence(), 20000);
 function startGame(s, pos, rot) {
   state = s;
   migrate(state);
+  applyCharacterAppearance(player, state.appearance);
   player.position.set(pos[0], 0, pos[1]);
   player.rotation.y = rot;
   cam.yaw = rot - Math.PI;
