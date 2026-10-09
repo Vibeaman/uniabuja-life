@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <title>UniAbuja Life</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <div id="hud" class="glass hidden">
+      <div id="topbar"><span id="clock"></span><span id="money"></span></div>
+      <div id="needs"></div>
+    </div>
+    <canvas id="minimap" width="160" height="160" class="hidden"></canvas>
+    <div id="prompt" class="glass hidden"></div>
+    <div id="panel" class="glass hidden">
+      <h2 id="panel-title"></h2>
+      <p id="panel-sub"></p>
+      <div id="panel-actions"></div>
+      <button id="panel-close">Leave</button>
+    </div>
+    <div id="toasts"></div>
+    <div id="joystick" class="hidden"><div id="stick"></div></div>
+    <button id="interact-btn" class="hidden">Enter</button>
+    <div id="fade"><span id="fade-text"></span></div>
+    <div id="intro">
+      <div class="card glass">
+        <h1>UniAbuja <span>Life</span></h1>
+        <p>Live your University of Abuja story. Attend lectures, survive hostel life, hustle for money and keep your GPA up.</p>
+        <input id="name" maxlength="16" placeholder="Your name" autocomplete="off" />
+        <button id="start">New game</button>
+        <button id="continue" class="secondary hidden"></button>
+        <p class="hint">WASD / arrows to move · Shift to run · Drag to look · Scroll to zoom · E to enter buildings or chat</p>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
