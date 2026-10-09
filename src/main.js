@@ -698,7 +698,7 @@ function renderPhone() {
       `<div class="ph-bal">${g === null ? '—' : g.toFixed(2)}<small>CGPA / 5.00 · ${g === null ? 'No results yet' : degreeClass(g)}</small></div>` +
       (state.grades.length ? state.grades.map((r) => `<div class="ph-row"><span>Test · Day ${r.day}</span><b>${r.score}% · ${r.grade}</b></div>`).join('') : '<p class="ph-sub">No results yet. Tests hold every 5th day at your faculty.</p>');
   } else if (phoneApp === 'online') {
-    h = head('Online') + `<div class="ph-bal">${online ?? 1}<small>${online ? 'players online now' : 'Offline mode: multiplayer server not connected yet'}</small></div><p class="ph-sub">Once the game is hosted with the presence server, this shows everyone playing UniAbuja Life.</p>`;
+    h = head('Online') + `<div class="ph-bal">${online ?? '—'}<small>${online ? 'players online now' : 'Single-player mode · live presence unavailable'}</small></div><p class="ph-sub">The static Vercel game works without a presence server. World characters and game messages are simulated, not live player chats. A separately hosted presence server is optional.</p>`;
   } else if (phoneApp === 'map') {
     h = head('Map') + `<div class="ph-tabs"><button data-tab="geographic" class="${mapTab === 'geographic' ? 'on' : ''}">Geographic map</button><button data-tab="campus" class="${mapTab === 'campus' ? 'on' : ''}">3D directions</button></div>` +
       (mapTab === 'campus'
@@ -824,14 +824,21 @@ function bank(k) {
 $('phone-close').onclick = closePhone;
 $('phone-btn').onclick = togglePhone;
 
-const PRESENCE_URL = import.meta.env.VITE_PRESENCE_URL || '/presence';
+const PRESENCE_URL = import.meta.env.VITE_PRESENCE_URL || (import.meta.env.DEV ? '/presence' : null);
 const clientId = Math.random().toString(36).slice(2);
 let online = null;
 async function pingPresence() {
+  if (!PRESENCE_URL) {
+    online = null;
+    $('online').textContent = 'Single-player mode';
+    $('online').classList.add('off');
+    return;
+  }
   try {
     const r = await fetch(PRESENCE_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: clientId }) });
     if (!r.ok) throw new Error();
-    online = (await r.json()).online || null;
+    const count = (await r.json()).online;
+    online = Number.isSafeInteger(count) && count > 0 ? count : null;
   } catch { online = null; }
   $('online').textContent = online ? `${online} online` : 'Offline mode';
   $('online').classList.toggle('off', !online);

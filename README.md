@@ -2,6 +2,8 @@
 
 A 3D campus life game set at the University of Abuja, built with Three.js and Vite.
 
+**Deploy to Vercel:** see [DEPLOYMENT.md](DEPLOYMENT.md). This is a static Vite site: build `npm run build`, output `dist`. **No account service, Supabase or environment variables are required to play.**
+
 ```bash
 npm install
 npm run dev   # http://localhost:5173
@@ -22,7 +24,7 @@ Controls: WASD/arrows to move, Shift to run, drag to look, scroll to zoom, E to 
 npm run presence   # tiny presence server on :8787 (dev server proxies /presence to it)
 ```
 
-In production, set `VITE_PRESENCE_URL` to the hosted presence endpoint. Without it the game shows "Offline mode".
+Vercel hosts the static game, not this long-running server. Production works without it and shows single-player mode, with no fabricated online count. Optionally set `VITE_PRESENCE_URL` only if you separately host a compatible HTTPS presence endpoint. No backend is required for gameplay.
 
 ## Wardrobe
 
