@@ -135,3 +135,13 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .room-status { line-height: 1.45; }
 .room-action { border-color: #f59e0b; }
 .ph-chips button:disabled { opacity: .45; cursor: not-allowed; }
+.geo-map { display: block; width: 100%; height: auto; border-radius: 14px; border: 1px solid #92a99a; }
+.geo-caption { font-size: 11px; line-height: 1.4; }
+.geo-places { display: grid; gap: 5px; margin: 10px 0; }
+.geo-places button { text-align: left; background: #1b2935; color: #eaf4ec; border: 1px solid #354553; border-radius: 8px; padding: 9px; font: inherit; font-size: 12px; cursor: pointer; min-height: 36px; }
+.geo-places button.on { border-color: #f59e0b; color: #fcd34d; }
+.geo-detail { padding: 12px; border: 1px solid #354553; border-radius: 12px; background: #17232e; font-size: 12px; line-height: 1.5; }
+.geo-detail p { margin: 8px 0; }
+.geo-detail small { color: #b3c1ce; }
+.geo-detail a, .geo-credit a { color: #86efac; }
+.geo-credit { font-size: 10px; margin: 12px 0; }

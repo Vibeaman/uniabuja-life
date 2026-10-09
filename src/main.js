@@ -5,6 +5,7 @@ import { OUTFITS, HAIRSTYLES, SKIN_TONES, ensureWardrobe, changeAppearance, outf
 import { drawAvatarPreview } from './preview.js';
 import { ROOM_CATEGORIES, FURNITURE, WALL_COLOURS, ROOM_LAYOUTS, ensureRoom, decorateRoom, furnitureById } from './rooms.js';
 import { drawRoomPreview } from './room-view.js';
+import { mapPanel } from './geography.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
 import { STORIES, storyById, storyStep, resolveAt, storyActions, storyAdvance } from './stories.js';
 import { CHOW, CHOW_FEE, chowAction, GIGS, todaysGigs, gistFeed, matricNo, degreeClass } from './apps.js';
@@ -569,7 +570,6 @@ function updateGuide() {
 }
 
 const APPS = [['missions', 'Missions', '#ef4444'], ['stories', 'Stories', '#f59e0b'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
-const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
 APPS.unshift(['wardrobe', 'Wardrobe', '#a78bfa']);
 APPS.unshift(['room', 'My Room', '#f59e0b']);
 let avatarRotation = 0;
@@ -580,7 +580,7 @@ function atOwnHome() {
   const home = locById(state.residence);
   return !!home && Math.hypot(player.position.x - home.doorPoint.x, player.position.z - home.doorPoint.z) < 3.2;
 }
-let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
+let phoneApp = null, mapTab = 'geographic', geoView = 'region', geoPlace = 'main';
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
 function openPhone(app = 'home') {
   if (!state || busy) return;
@@ -700,10 +700,10 @@ function renderPhone() {
   } else if (phoneApp === 'online') {
     h = head('Online') + `<div class="ph-bal">${online ?? 1}<small>${online ? 'players online now' : 'Offline mode: multiplayer server not connected yet'}</small></div><p class="ph-sub">Once the game is hosted with the presence server, this shows everyone playing UniAbuja Life.</p>`;
   } else if (phoneApp === 'map') {
-    h = head('Map') + `<div class="ph-tabs"><button data-tab="campus" class="${mapTab === 'campus' ? 'on' : ''}">Campus</button><button data-tab="real" class="${mapTab === 'real' ? 'on' : ''}">Real map</button></div>` +
+    h = head('Map') + `<div class="ph-tabs"><button data-tab="geographic" class="${mapTab === 'geographic' ? 'on' : ''}">Geographic map</button><button data-tab="campus" class="${mapTab === 'campus' ? 'on' : ''}">3D directions</button></div>` +
       (mapTab === 'campus'
-        ? '<canvas id="ph-map" width="260" height="300"></canvas><p class="ph-sub">Tap a place to get directions. Follow the yellow arrow.</p>'
-        : `<div class="ph-chips">${REAL.map(([n, q]) => `<button data-q="${esc(q)}" class="${q === realQ ? 'on' : ''}">${n}</button>`).join('')}</div><iframe class="ph-iframe" loading="lazy" src="https://maps.google.com/maps?q=${encodeURIComponent(realQ)}&z=14&output=embed" title="Google Map"></iframe><p class="ph-sub">Real Google Map of the area. The 3D campus is not to scale yet.</p>`);
+        ? '<canvas id="ph-map" width="260" height="300"></canvas><p class="ph-sub">Simplified game layout, not geographic coordinates. Tap a place to get directions. Follow the yellow arrow.</p>'
+        : mapPanel(geoView, geoPlace, state, AREAS));
   }
   scr.innerHTML = h;
   if (phoneApp === 'wardrobe') drawAvatarPreview($('avatar-preview'), state.appearance, avatarRotation);
@@ -752,6 +752,8 @@ function drawPhoneMap() {
   };
 }
 $('phone-screen').addEventListener('click', (e) => {
+  const marker = e.target.closest('g[data-geo-place]');
+  if (marker && !busy) { geoPlace = marker.dataset.geoPlace; renderPhone(); return; }
   const b = e.target.closest('button');
   if (!b) return;
   if (b.disabled || busy) return;
@@ -791,7 +793,12 @@ $('phone-screen').addEventListener('click', (e) => {
     renderPhone(); renderPanel(true); save();
   }
   else if (b.dataset.tab) { mapTab = b.dataset.tab; renderPhone(); }
-  else if (b.dataset.q) { realQ = b.dataset.q; renderPhone(); }
+  else if (b.dataset.geoView) {
+    geoView = b.dataset.geoView;
+    const defaultPlace = {region:'main',main:'main',giri:'giri',iddo:'iddo',gwagwalada:'mini'};
+    geoPlace = defaultPlace[geoView]; renderPhone();
+  }
+  else if (b.dataset.geoPlace) { geoPlace = b.dataset.geoPlace; renderPhone(); }
 });
 function bank(k) {
   const [op, v] = k.split(':');

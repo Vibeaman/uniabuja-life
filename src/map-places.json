@@ -1,0 +1,144 @@
+[
+  {
+    "id": "main",
+    "name": "UniAbuja Main Campus",
+    "point": [
+      8.97904,
+      7.17701
+    ],
+    "overview": true,
+    "source": "https://mapcarta.com/W1133000152",
+    "note": "Main Campus on Abuja–Airport Road. Reference point inside the university, not the entrance."
+  },
+  {
+    "id": "senate",
+    "name": "Senate Building",
+    "point": [
+      8.9812578,
+      7.1795312
+    ],
+    "gameId": "senate",
+    "overview": false,
+    "source": "https://bw.maptons.com/p/10256923309",
+    "note": "Main campus (official UNIABUJA page explicitly lists Senate Building as housed on Main Campus) · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "library",
+    "name": "University library",
+    "point": [
+      8.9793682,
+      7.1796401
+    ],
+    "gameId": "library",
+    "overview": false,
+    "source": "https://pg.maptons.com/p/10250687574",
+    "note": "Main-campus location per supplied task reference and campus map context; Maptons page itself names library but does not explicitly say Main Campus · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "engineering",
+    "name": "Faculty of Engineering",
+    "point": [
+      8.9775129,
+      7.1759153
+    ],
+    "gameId": "engineering",
+    "overview": false,
+    "source": "https://ls.maptons.com/p/10271643728",
+    "note": "Main campus (official UNIABUJA page explicitly lists Engineering among Main Campus faculties) · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "mgmt",
+    "name": "Faculty of Management Sciences",
+    "point": [
+      8.9793191,
+      7.1828143
+    ],
+    "gameId": "mgmt",
+    "overview": false,
+    "source": "https://bw.maptons.com/p/10256927219",
+    "note": "Main campus (official UNIABUJA page explicitly lists Management Sciences among Main Campus faculties) · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "hostel-og",
+    "name": "Old Girls Hostel",
+    "point": [
+      8.9751376,
+      7.1768373
+    ],
+    "gameId": "hostel-og",
+    "overview": false,
+    "source": "https://bw.maptons.com/p/10282887821",
+    "note": "Main campus (Maptons address explicitly says University of Abuja, Main Campus; official page also identifies student hostels as on Main Campus) · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "hostel-ng",
+    "name": "New Girls Hostel",
+    "point": [
+      8.9718911,
+      7.1792053
+    ],
+    "gameId": "hostel-ng",
+    "overview": false,
+    "source": "https://ng.maptons.com/p/10251161541",
+    "note": "University of Abuja; main campus not explicit on its own Maptons page (classification only inferred from map context, not included as verified) · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "iddo",
+    "name": "Iddo Sarki (near University of Abuja)",
+    "point": [
+      8.983889,
+      7.206389
+    ],
+    "overview": true,
+    "travelId": "iddo",
+    "source": "http://wikimapia.org/21942320/Iddo-Sarki",
+    "note": "Federal Capital Territory; Wikimapia categorizes under Abuja Federal Capital Territory and Gwi, lists Iddo Sarki town; page says University of Abuja is 3.1 km away"
+  },
+  {
+    "id": "mini",
+    "name": "University of Abuja Mini Campus",
+    "point": [
+      8.9527488,
+      7.0729121
+    ],
+    "overview": true,
+    "travelId": "gwagwalada",
+    "source": "https://ug.maptons.com/p/10256919090",
+    "note": "Mini Campus (explicit in Maptons address)"
+  },
+  {
+    "id": "law-mini",
+    "name": "Faculty of Law (Mini Campus)",
+    "point": [
+      8.9508842,
+      7.0742543
+    ],
+    "overview": false,
+    "source": "https://pg.maptons.com/p/10236439222",
+    "note": "Maptons page locates Faculty of Law at X32F+9P2, in the Mini Campus/Gwagwalada area; nearby UniAbuja Mini Campus page is https://ug.maptons.com/p/10256919090"
+  },
+  {
+    "id": "science",
+    "name": "Faculty of Science (Main Campus)",
+    "point": [
+      8.9814605,
+      7.1783106
+    ],
+    "gameId": "science",
+    "overview": false,
+    "source": "https://km.maptons.com/p/10275580313",
+    "note": "Maptons nearby places list University Of Abuja, Main Campus at 0 km; official UNIABUJA Our Location page confirms Sciences is a Main Campus faculty · The game directions lead to the stylised 3D counterpart, not this real coordinate."
+  },
+  {
+    "id": "giri",
+    "name": "Giri Junction",
+    "point": [
+      9.0080067,
+      7.1548283
+    ],
+    "overview": true,
+    "travelId": "giri",
+    "source": "https://ng.maptons.com/p/10184957940",
+    "note": "Mapped junction reference for the Giri area, not a verified student-lodge address."
+  }
+]

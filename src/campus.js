@@ -10,8 +10,8 @@ export const FACULTIES = {
 };
 
 export const AREAS = [
-  { id: 'giri', name: 'Giri', fare: 300, mins: 15, blurb: 'Off-campus community close to the main campus. Plenty of students rent lodges here.' },
-  { id: 'iddo', name: 'Iddo', fare: 400, mins: 20, blurb: 'Off-campus community where many students rent cheaper lodges. Keke every morning is a must.' },
+  { id: 'giri', name: 'Giri', fare: 300, mins: 15, blurb: 'Off-campus Giri area. The geographic map uses Giri Junction as a reference; your lodge is fictional. Travel fare and time are game estimates.' },
+  { id: 'iddo', name: 'Iddo', fare: 400, mins: 20, blurb: 'Off-campus Iddo area. The geographic map uses Iddo Sarki as a reference; your lodge is fictional. Travel fare and time are game estimates.' },
   { id: 'gwagwalada', name: 'Gwagwalada', fare: 600, mins: 35, blurb: 'The big town near campus: home of the mini campus, the market, shawarma spots and nightlife.' },
 ];
 
