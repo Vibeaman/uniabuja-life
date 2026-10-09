@@ -7,27 +7,33 @@ const FAC_BLURB = 'Lectures run 08:00–16:00. Every 5th day is test day: write 
 
 export const LOCATIONS = [
   { id: 'gate', name: 'Main Gate', actions: 'gate', x: 0, z: 95, w: 18, d: 3, h: 7, door: [0, -1], kind: 'gate', roof: 0x15803d,
-    blurb: 'The gateway to UniAbuja. Mallams sell suya here at night, and there is always POS business to be done.' },
+    blurb: 'Main gate of the permanent site on Airport Road. It was renamed Yakubu Gowon University in 2024, but everyone still says UniAbuja. POS stands by day, suya mallams at night.' },
   { id: 'keke', name: 'Keke Park', actions: 'keke', x: 18, z: 85, w: 10, d: 8, h: 4, door: [-1, 0], kind: 'shed', roof: 0x222222,
-    blurb: 'Grab a keke to Gwagwalada for market runs or a night out in town.' },
+    blurb: 'Grab a keke to Gwagwalada for the market, the mini campus, or a night out in town.' },
   { id: 'health', name: 'Health Centre', actions: 'health', x: -22, z: 80, w: 14, d: 10, h: 6, door: [1, 0], color: '#f4f8fb', roof: 0xc62828,
     blurb: 'Feeling run down? The nurses will patch you up.' },
   { id: 'cafeteria', name: 'Cafeteria', actions: 'cafeteria', x: -25, z: 55, w: 18, d: 12, h: 6, door: [0, -1], color: '#fff3d6', roof: 0xe07a1f,
-    blurb: 'Jollof, amala, puff-puff and gist. Open 07:00–21:00.' },
+    blurb: 'Jollof, amala, rice and beans, puff-puff and plenty gist. Open 07:00–21:00.' },
   { id: 'sug', name: 'SUG Building', actions: 'sug', x: 25, z: 55, w: 18, d: 12, h: 8, door: [0, -1], color: '#e3f0fb', roof: 0x2e7d32,
-    blurb: 'Student Union Government. Meetings, games and side hustles.' },
+    blurb: 'Students\' Union Government. Meetings, games and side hustles.' },
+  { id: 'education', name: 'Faculty of Education', actions: 'faculty', x: -65, z: 55, w: 20, d: 12, h: 9, door: [0, -1], color: '#fef9e7', roof: 0x00838f, blurb: FAC_BLURB },
+  { id: 'envsci', name: 'Faculty of Environmental Sciences', actions: 'faculty', x: 65, z: 55, w: 20, d: 12, h: 9, door: [0, -1], color: '#f1f8e9', roof: 0x558b2f, blurb: FAC_BLURB },
   { id: 'senate', name: 'Senate Building', actions: 'senate', x: -28, z: 15, w: 22, d: 14, h: 14, door: [0, 1], color: '#efe4cf', roof: 0x7a5a45, kind: 'senate',
-    blurb: 'University administration. Check your results or find a work-study job.' },
+    blurb: 'University administration. Check your results, register courses or find a work-study job.' },
   { id: 'library', name: 'University Library', actions: 'library', x: 28, z: 15, w: 22, d: 14, h: 12, door: [0, 1], color: '#e7ddd5', roof: 0x5d4037,
-    blurb: 'Quiet (mostly). Study here to prepare for tests. Open 08:00–22:00.' },
+    blurb: 'The main library on the permanent site. Quiet (mostly). Study here to prepare for tests. Open 08:00–22:00.' },
   { id: 'science', name: 'Faculty of Science', actions: 'faculty', x: -65, z: 15, w: 20, d: 14, h: 10, door: [0, 1], color: '#fff3e0', roof: 0x1565c0, blurb: FAC_BLURB },
   { id: 'engineering', name: 'Faculty of Engineering', actions: 'faculty', x: 65, z: 15, w: 20, d: 14, h: 10, door: [0, 1], color: '#eceff1', roof: 0x37474f, blurb: FAC_BLURB },
+  { id: 'mgmt', name: 'Faculty of Management Sciences', actions: 'faculty', x: -65, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#e8eaf6', roof: 0x283593, blurb: FAC_BLURB },
   { id: 'law', name: 'Faculty of Law', actions: 'faculty', x: -28, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#fdecea', roof: 0x8e0000, blurb: FAC_BLURB },
   { id: 'socsci', name: 'Faculty of Social Sciences', actions: 'faculty', x: 28, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#eef6ee', roof: 0x6a1b9a, blurb: FAC_BLURB },
-  { id: 'hostel', name: 'Student Hostel', actions: 'hostel', x: -50, z: -80, w: 34, d: 14, h: 12, door: [0, 1], color: '#f0e0c0', roof: 0x6d4c41,
-    blurb: 'Home sweet home. Sleep, cook and gist with your roommates.' },
+  { id: 'arts', name: 'Faculty of Arts', actions: 'faculty', x: 65, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#fce4ec', roof: 0xad1457, blurb: FAC_BLURB },
+  { id: 'hostel', name: 'Female Hostels', actions: 'hostel', x: -72, z: -80, w: 28, d: 14, h: 12, door: [0, 1], color: '#f8e1e7', roof: 0x6d4c41,
+    blurb: 'Three female hostel blocks. Sleep, cook and gist with your roommates. Water and light are not guaranteed.' },
+  { id: 'hostel-m', name: 'Male Hostels', actions: 'hostel', x: -30, z: -80, w: 24, d: 14, h: 12, door: [0, 1], color: '#f0e0c0', roof: 0x4e342e,
+    blurb: 'Two male hostel blocks. Sleep, cook and gist with your roommates. Water and light are not guaranteed.' },
   { id: 'sports', name: 'Sports Complex', actions: 'sports', x: 45, z: -82, w: 40, d: 26, h: 3, door: [0, 1], kind: 'field', roof: 0x2e7d32,
-    blurb: 'Football, jogging and evening matches.' },
+    blurb: 'Football, jogging and inter-faculty matches.' },
 ];
 
 function rng(seed) {
@@ -143,14 +149,15 @@ function addGate(scene, L, out) {
     scene.add(mesh(new THREE.BoxGeometry(2.4, 0.6, 2.4), capM, sx, L.h + 0.3, L.z));
     out.boxes.push({ minX: sx - 1, maxX: sx + 1, minZ: L.z - 1, maxZ: L.z + 1 });
   }
-  const sign = canvasTex(1024, 128, (g, w, h) => {
+  const sign = canvasTex(1024, 160, (g, w, h) => {
     g.fillStyle = '#f8fafc'; g.fillRect(0, 0, w, h);
     g.fillStyle = '#15803d'; g.fillRect(0, 0, w, 10); g.fillRect(0, h - 10, w, 10);
-    g.font = 'bold 78px system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.fillText('UNIVERSITY OF ABUJA', w / 2, h / 2 + 4);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = 'bold 70px system-ui, sans-serif'; g.fillText('UNIVERSITY OF ABUJA', w / 2, 62);
+    g.font = 'bold 30px system-ui, sans-serif'; g.fillText('YAKUBU GOWON UNIVERSITY', w / 2, 122);
   }, false);
   const signM = new THREE.MeshStandardMaterial({ map: sign, roughness: 0.6 });
-  scene.add(mesh(new THREE.BoxGeometry(18, 1.8, 1.2), [capM, capM, capM, capM, signM, signM], 0, L.h - 0.6, L.z));
+  scene.add(mesh(new THREE.BoxGeometry(18, 2.6, 1.2), [capM, capM, capM, capM, signM, signM], 0, L.h - 1, L.z));
 }
 
 function addField(scene, L, out) {

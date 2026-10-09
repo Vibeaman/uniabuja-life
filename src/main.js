@@ -46,7 +46,11 @@ const LINES = [
   'Have you seen the new timetable?', 'Abeg, do you have the past questions?', 'The cafeteria jollof is on point today.',
   'NEPA took light in our block again.', 'Are you going for the SUG meeting?', 'This lecturer no dey play with attendance o.',
   "Let's do group study at the library later.", 'Keke fare to Gwagwalada don increase again!', 'Test is coming and I never read anything.',
-  'Football at the sports complex by 5pm?',
+  'Football at the sports complex by 5pm?', 'Omo, sapa has finished me this week.', 'Who get carryover for GST? Na me o.',
+  'How far? Wetin dey happen for your department?', 'Our course rep don post another dues for the group chat.',
+  'No water for hostel again. I don tire.', 'You be JJC? Freshers dey always lost for this campus.',
+  'ASUU fit strike again this session, e no go surprise me.', 'Make we go chop for cafeteria, I dey hungry die.',
+  'Departmental week dinner na this Friday, you don get outfit?', 'Keke guys don increase fare to Gwagwalada again.',
 ];
 
 const npcs = NPC_NAMES.map((name, i) => {

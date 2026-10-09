@@ -4,7 +4,7 @@ export const fmtMoney = (n) => '₦' + Math.round(n).toLocaleString('en-NG');
 const pad2 = (n) => String(n).padStart(2, '0');
 export const fmtTime = (m) => `${pad2(Math.floor(m / 60) % 24)}:${pad2(Math.floor(m % 60))}`;
 export const fmtDur = (m) => (m >= 60 ? `${+(m / 60).toFixed(1)}h` : `${m}m`);
-export const isExamDay = (s) => s.day % 5 === 0;
+export const isExamDay = (s) => s.day % 5 === 0 && !(s.strike > 0);
 
 export function gpa(s) {
   if (!s.grades.length) return null;
@@ -12,7 +12,7 @@ export function gpa(s) {
 }
 
 export function newState(name) {
-  return { name, day: 1, minutes: 7 * 60, money: 5000, energy: 85, hunger: 75, social: 60, knowledge: 0, pantry: 2, grades: [], examDone: false, lastAllowanceDay: 1 };
+  return { name, day: 1, minutes: 7 * 60, money: 5000, energy: 85, hunger: 75, social: 60, knowledge: 0, pantry: 2, grades: [], examDone: false, lastAllowanceDay: 1, strike: 0 };
 }
 
 function gradeFor(score) {
@@ -31,13 +31,43 @@ function newDay(s, notify) {
   }
   s.day += 1;
   s.examDone = false;
+  if (s.strike > 0) {
+    s.strike -= 1;
+    if (!s.strike) notify('ASUU has called off the strike. Lectures resume today!', 'good');
+  }
   if (s.day - s.lastAllowanceDay >= 7) {
     s.lastAllowanceDay = s.day;
     s.money += 10000;
     notify('Your parents sent your weekly allowance: +₦10,000', 'good');
   }
+  campusEvent(s, notify);
+  if (s.money < 1000) notify('Sapa don land! You have less than ₦1,000. Time to hustle.', 'bad');
   if (isExamDay(s)) notify(`Day ${s.day} is TEST DAY! Write it at any faculty between 09:00 and 15:00.`, 'warn');
   else if ((s.day + 1) % 5 === 0) notify('Test tomorrow! Hit the library.', 'warn');
+}
+
+function campusEvent(s, notify) {
+  if (s.day === 3) {
+    s.social = clamp(s.social + 10, 0, 100);
+    return notify('Matriculation day! You took the oath as a bonafide UniAbuja student. +10 Social', 'good');
+  }
+  if (s.day % 14 === 10) return notify('SUG election week. Aspirants are campaigning in every lecture hall. Vote at the SUG Building.', 'warn');
+  if (s.strike > 0) return;
+  const r = Math.random();
+  if (r < 0.06 && s.day > 5) {
+    s.strike = 2;
+    notify('ASUU has declared a 2-day warning strike. No lectures and no tests until it is called off.', 'warn');
+  } else if (r < 0.2) {
+    s.energy = clamp(s.energy - 5, 0, 100);
+    s.money -= Math.min(s.money, 200);
+    notify('No water in the hostels today. You bought sachet water and queued at the borehole. −₦200, −5 Energy', 'bad');
+  } else if (r < 0.3 && s.money >= 1000) {
+    s.money -= 1000;
+    notify('Your course rep is collecting departmental dues. −₦1,000', 'bad');
+  } else if (r < 0.38) {
+    s.social = clamp(s.social + 8, 0, 100);
+    notify('Departmental week is on! Everyone is wearing their dinner outfits. +8 Social', 'good');
+  }
 }
 
 export function advance(s, mins, mode = {}, notify = () => {}) {
@@ -59,10 +89,11 @@ export function advance(s, mins, mode = {}, notify = () => {}) {
 }
 
 const FACULTY = [
-  { label: 'Attend lecture', mins: 120, hours: [8, 16], fx: { knowledge: 10, energy: -6, social: 4 }, msg: 'You sat through the lecture and took solid notes.' },
+  { label: 'Attend lecture', mins: 120, hours: [8, 16], cond: (s) => !(s.strike > 0), condMsg: () => 'ASUU strike: no lectures', fx: { knowledge: 10, energy: -6, social: 4 }, msg: 'You sat through the lecture and took solid notes.' },
   { label: 'Write test', mins: 90, hours: [9, 15], test: true,
-    cond: (s) => isExamDay(s) && !s.examDone, condMsg: (s) => (isExamDay(s) ? 'Already written today' : 'Only on test days (every 5th day)') },
-  { label: 'See your lecturer', mins: 30, hours: [9, 15], fx: { knowledge: 3, social: 2 }, msg: 'Your lecturer explained the tricky topic.' },
+    cond: (s) => isExamDay(s) && !s.examDone, condMsg: (s) => (s.strike > 0 ? 'ASUU strike: no tests' : isExamDay(s) ? 'Already written today' : 'Only on test days (every 5th day)') },
+  { label: 'Attend GST lecture (Use of English)', mins: 90, hours: [8, 16], cond: (s) => !(s.strike > 0), condMsg: () => 'ASUU strike: no lectures', fx: { knowledge: 6, social: 6, energy: -4 }, msg: 'The GST hall was packed. You stood at the back but still took notes.' },
+  { label: 'See your lecturer', mins: 30, hours: [9, 15], cond: (s) => !(s.strike > 0), condMsg: () => 'ASUU strike: no lectures', fx: { knowledge: 3, social: 2 }, msg: 'Your lecturer explained the tricky topic.' },
 ];
 
 export const ACTIONS = {
@@ -76,6 +107,7 @@ export const ACTIONS = {
   ],
   cafeteria: [
     { label: 'Jollof rice & chicken', mins: 30, hours: [7, 21], cost: 1500, fx: { hunger: 50, social: 3 }, msg: 'That jollof hit different.' },
+    { label: 'Rice & beans with dodo', mins: 30, hours: [7, 21], cost: 1000, fx: { hunger: 45 }, msg: 'Rice, beans and plantain. Correct combo.' },
     { label: 'Amala & ewedu', mins: 30, hours: [7, 21], cost: 900, fx: { hunger: 40 }, msg: 'Filling and sweet.' },
     { label: 'Puff-puff & zobo', mins: 15, hours: [7, 21], cost: 400, fx: { hunger: 15, social: 3 }, msg: 'Quick snack, small gist.' },
     { label: 'Hang out with friends', mins: 60, hours: [7, 21], cost: 300, fx: { social: 15 }, msg: 'Good vibes at the cafeteria.' },
@@ -93,6 +125,7 @@ export const ACTIONS = {
   sug: [
     { label: 'Attend SUG meeting', mins: 60, hours: [16, 20], fx: { social: 20 }, msg: 'Heated debate about hostel water supply.' },
     { label: 'Play table tennis', mins: 60, hours: [8, 22], fx: { social: 10, energy: -5 }, msg: 'You won two out of three games.' },
+    { label: 'Vote in SUG elections', mins: 45, hours: [9, 17], cond: (s) => s.day % 14 === 10 && s.votedDay !== s.day, condMsg: () => 'Only during SUG election week (Day 10, 24, ...)', vote: true, fx: { social: 10 }, msg: 'You voted. Your candidate promised constant light and water.' },
     { label: 'Tutor junior students', mins: 120, hours: [10, 20], earn: 2500, fx: { knowledge: 3, energy: -10 }, msg: 'Teaching helps you learn too. +₦2,500' },
   ],
   sports: [
@@ -105,7 +138,8 @@ export const ACTIONS = {
     { label: 'Buy suya from the mallam', mins: 15, hours: [17, 23], cost: 700, fx: { hunger: 25 }, msg: 'Spicy and perfect.' },
   ],
   keke: [
-    { label: 'Market run to Gwagwalada', mins: 120, hours: [6, 20], cost: 2400, pantry: 4, fx: { social: 5 }, msg: 'You stocked up on 4 packs of noodles.' },
+    { label: 'Market run to Gwagwalada market', mins: 120, hours: [6, 20], cost: 2400, pantry: 4, fx: { social: 5 }, msg: 'You stocked up on 4 packs of noodles.' },
+    { label: 'Visit friends at the mini campus', mins: 150, hours: [8, 18], cost: 800, fx: { social: 18, energy: -6 }, msg: 'You linked up with your guys at the mini campus in Gwagwalada.' },
     { label: 'Hang out in town', mins: 180, hours: [10, 22], cost: 1500, fx: { social: 25, energy: -8 }, msg: 'Shawarma and gist in town.' },
   ],
   health: [
@@ -149,6 +183,7 @@ export function perform(s, a, notify) {
   if (a.cost) s.money -= a.cost;
   if (a.earn) s.money += a.earn;
   if (a.pantry) s.pantry += a.pantry;
+  if (a.vote) s.votedDay = s.day;
   if (a.test) {
     const score = clamp(Math.round(30 + s.knowledge * 0.6 + (s.energy - 50) * 0.15 + (Math.random() * 16 - 8)), 0, 100);
     const [grade, points] = gradeFor(score);
