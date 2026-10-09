@@ -3,6 +3,8 @@ import { buildWorld, makeLabel } from './world.js';
 import { makeCharacter, animateWalk, applyCharacterAppearance } from './character.js';
 import { OUTFITS, HAIRSTYLES, SKIN_TONES, ensureWardrobe, changeAppearance, outfitById } from './wardrobe.js';
 import { drawAvatarPreview } from './preview.js';
+import { ROOM_CATEGORIES, FURNITURE, WALL_COLOURS, ROOM_LAYOUTS, ensureRoom, decorateRoom, furnitureById } from './rooms.js';
+import { drawRoomPreview } from './room-view.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
 import { STORIES, storyById, storyStep, resolveAt, storyActions, storyAdvance } from './stories.js';
 import { CHOW, CHOW_FEE, chowAction, GIGS, todaysGigs, gistFeed, matricNo, degreeClass } from './apps.js';
@@ -131,6 +133,7 @@ addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') { if (e.code === 'Enter') $('start').click(); return; }
   if (e.code === 'KeyP' && state) { togglePhone(); return; }
   if (e.code === 'Escape') closePhone();
+  if (phoneApp) return;
   keys.add(e.code);
   if (!state) return;
   if (e.code === 'KeyE') tryInteract();
@@ -221,7 +224,7 @@ function resolve(p) {
 
 function updatePlayer(dt) {
   let ix = 0, iy = 0;
-  if (!panelOpen && !busy) {
+  if (!panelOpen && !busy && !phoneApp) {
     if (keys.has('KeyW') || keys.has('ArrowUp')) iy += 1;
     if (keys.has('KeyS') || keys.has('ArrowDown')) iy -= 1;
     if (keys.has('KeyA') || keys.has('ArrowLeft')) ix -= 1;
@@ -320,6 +323,11 @@ function renderPanel(force = false) {
     b.onclick = () => doAction(a);
     box.appendChild(b);
   });
+  if (L.id === state.residence) {
+    const b = document.createElement('button');
+    b.className = 'action room-action'; b.textContent = 'Decorate my room';
+    b.onclick = () => openPhone('room'); box.appendChild(b);
+  }
 }
 
 function openPanel(L) {
@@ -487,6 +495,7 @@ function migrate(s) {
   if (!locById(s.residence) && !AREAS.some((A) => A.id === s.residence)) s.residence = 'hostel-ob';
   s.inbox ??= []; s.tx ??= []; s.away ??= null; s.hygiene ??= 80; s.bladder ??= 80; s.savings ??= 0;
   ensureWardrobe(s);
+  ensureRoom(s);
 }
 
 function logTx(label, amt) {
@@ -562,12 +571,21 @@ function updateGuide() {
 const APPS = [['missions', 'Missions', '#ef4444'], ['stories', 'Stories', '#f59e0b'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
 const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
 APPS.unshift(['wardrobe', 'Wardrobe', '#a78bfa']);
+APPS.unshift(['room', 'My Room', '#f59e0b']);
 let avatarRotation = 0;
+let roomCategory = 'bed', roomAngle = Math.PI / 4;
+function atOwnHome() {
+  if (!state) return false;
+  if (state.away) return state.away === state.residence;
+  const home = locById(state.residence);
+  return !!home && Math.hypot(player.position.x - home.doorPoint.x, player.position.z - home.doorPoint.z) < 3.2;
+}
 let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
 function openPhone(app = 'home') {
   if (!state || busy) return;
   phoneApp = app;
+  keys.clear(); joy.x = joy.y = 0; stick.style.transform = '';
   $('phone').classList.remove('hidden');
   renderPhone();
 }
@@ -580,6 +598,25 @@ function renderPhone() {
   let h = '';
   if (phoneApp === 'home') {
     h = `<div class="ph-greet">Hi ${esc(state.name)}<small>${esc(state.dept)} · ${fac}</small></div><div class="ph-grid">${APPS.map(([id, n, c]) => `<button class="ph-app" data-app="${id}"><i style="background:${c}">${n[0]}</i>${n}</button>`).join('')}</div>`;
+  } else if (phoneApp === 'room') {
+    const room = ensureRoom(state), home = atOwnHome(), L = locById(state.residence), A = AREAS.find((x) => x.id === state.residence);
+    const name = L?.name || `${A?.name || 'Your'} lodge`;
+    const disabled = home ? '' : 'disabled';
+    h = head('My Room') + `<p class="ph-sub">${esc(name)} · Your own corner of campus life</p><div id="room-preview" class="custom-preview"></div>` +
+      '<div class="ph-chips"><button data-room-turn="-1" aria-label="View room from left">↶ View</button><button data-room-turn="1" aria-label="View room from right">View ↷</button></div>' +
+      `<p class="ph-sub room-status">${home ? 'You are home. Pick furniture for each spot and try a layout.' : 'Viewing only. Go to your own hostel or lodge to buy, place or decorate.'} Furniture is cosmetic; it does not change your needs.</p>` +
+      (home ? '' : L ? `<button class="ph-row ph-btn" data-guide="${L.id}"><span>Directions home</span><b>›</b></button>` : state.away ? '<button class="ph-row ph-btn" data-ride="keke"><span>Keke back to campus first</span><b>›</b></button>' : `<button class="ph-row ph-btn" data-ride="${state.residence}"><span>Keke home to ${esc(A?.name || '')}</span><b>${fmtMoney(A?.fare || 0)}</b></button>`) +
+      '<h3 class="ph-section">Wall colour · free</h3><div class="ph-chips">' +
+      WALL_COLOURS.map((w) => `<button data-room-wall="${w.id}" class="${room.wall === w.id ? 'on' : ''}" aria-pressed="${room.wall === w.id}" ${disabled}><i class="skin-swatch" style="background:${w.color}"></i>${w.name}</button>`).join('') +
+      '</div><h3 class="ph-section">Layout · free</h3><div class="ph-chips">' +
+      ROOM_LAYOUTS.map((l) => `<button data-room-layout="${l.id}" class="${room.layout === l.id ? 'on' : ''}" aria-pressed="${room.layout === l.id}" ${disabled}>${l.name}</button>`).join('') +
+      '</div><h3 class="ph-section">Furniture shop & storage</h3><div class="ph-chips room-tabs">' +
+      ROOM_CATEGORIES.map(([id, label]) => `<button data-room-tab="${id}" class="${roomCategory === id ? 'on' : ''}" aria-pressed="${roomCategory === id}">${label}</button>`).join('') + '</div>' +
+      FURNITURE.filter((f) => f.kind === roomCategory).map((f) => {
+        const owned = room.owned.includes(f.id), placed = room.equipped[f.kind] === f.id;
+        return `<button class="ph-row ph-btn ${placed ? 'selected' : ''}" data-room-furniture="${f.id}" ${!home || placed || (!owned && state.money < f.price) ? 'disabled' : ''}><span>${f.name}<small>${placed ? 'Placed' : owned ? 'Owned · place for free' : 'Buy & place · keep forever'}</small></span><b>${placed ? 'On' : owned ? 'Place' : fmtMoney(f.price)}</b></button>`;
+      }).join('') +
+      `<button class="ph-row ph-btn" data-room-store="${roomCategory}" ${!home || !room.equipped[roomCategory] ? 'disabled' : ''}><span>Store current item<small>Keep it in storage; no cash refund.</small></span><b>↗</b></button><p class="ph-sub">Your design saves automatically on this browser. No cloud saves or friend invitations yet.</p>`;
   } else if (phoneApp === 'wardrobe') {
     ensureWardrobe(state);
     const a = state.appearance;
@@ -670,6 +707,7 @@ function renderPhone() {
   }
   scr.innerHTML = h;
   if (phoneApp === 'wardrobe') drawAvatarPreview($('avatar-preview'), state.appearance, avatarRotation);
+  if (phoneApp === 'room') drawRoomPreview($('room-preview'), ensureRoom(state), roomAngle);
   if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap();
 }
 function applyRewards(list) {
@@ -718,6 +756,20 @@ $('phone-screen').addEventListener('click', (e) => {
   if (!b) return;
   if (b.disabled || busy) return;
   if (b.dataset.app) { phoneApp = b.dataset.app; renderPhone(); }
+  else if (b.dataset.roomTab) { roomCategory = b.dataset.roomTab; renderPhone(); }
+  else if (b.dataset.roomTurn) {
+    roomAngle = clamp(roomAngle + Number(b.dataset.roomTurn) * Math.PI / 8, 0.12, Math.PI / 2 - 0.12);
+    drawRoomPreview($('room-preview'), ensureRoom(state), roomAngle);
+  }
+  else if (b.dataset.roomFurniture || b.dataset.roomStore || b.dataset.roomWall || b.dataset.roomLayout) {
+    const op = b.dataset.roomFurniture ? 'furniture' : b.dataset.roomStore ? 'store' : b.dataset.roomWall ? 'wall' : 'layout';
+    const id = b.dataset['room' + op[0].toUpperCase() + op.slice(1)];
+    const res = decorateRoom(state, op, id, atOwnHome());
+    if (!res.ok) return toast(res.msg, 'bad');
+    if (res.cost) logTx(`Room: ${furnitureById(id).name}`, -res.cost);
+    renderHud(); renderPhone(); renderPanel(true); save();
+    if (res.changed) toast(res.msg, 'good');
+  }
   else if (b.dataset.outfit || b.dataset.hair || b.dataset.skin) {
     const category = b.dataset.outfit ? 'outfit' : b.dataset.hair ? 'hair' : 'skin';
     const id = b.dataset[category], res = changeAppearance(state, category, id);

@@ -131,3 +131,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .fabric-swatch.adire { background: radial-gradient(circle, #bfdbfe 25%, #312e81 30% 60%, #bfdbfe 65% 70%, #312e81 75%); }
 .fabric-swatch.asooke { background: repeating-linear-gradient(90deg, #9f1239 0 5px, #fbbf24 5px 7px, #fef3c7 7px 8px); }
 .ph-chips button { min-height: 34px; }
+.room-tabs { display: grid; grid-template-columns: repeat(4, 1fr); }
+.room-status { line-height: 1.45; }
+.room-action { border-color: #f59e0b; }
+.ph-chips button:disabled { opacity: .45; cursor: not-allowed; }

@@ -29,3 +29,12 @@ In production, set `VITE_PRESENCE_URL` to the hosted presence endpoint. Without 
 Open **Phone → Wardrobe** to change your campus character. Campus Green and Casual Navy are free. Buy Ankara, Adire or Aso-oke-inspired outfits once with in-game money, then wear them for free. Low cut, afro, braids, locs and four skin tones are free. Turn the 3D preview to see your look. Appearance and owned outfits are included in the existing local save; older saves receive starter defaults without resetting progress.
 
 Run `npm test` for the customisation regression tests and `npm run build` to check the production build.
+
+## Room decorating
+
+Open **Phone → My Room**, or enter your own hostel/lodge and choose **Decorate my room**. The 3D diorama shows your furniture, wall colour and layout. You can view your room from anywhere, but must be at your own hostel entrance or off-campus lodge to edit it.
+
+- A mattress, study table and plastic chair come free with your room.
+- Buy beds, desks, an armchair, rugs, lamps, a plant, a bookshelf and wall art with in-game money. Purchases are owned permanently; replacing or storing an item does not sell it. Place owned items again for free.
+- Four wall colours and three arrangements (Cosy corner, Study zone, Open centre) are free. Furniture uses designated spots rather than free dragging.
+- Designs are saved per residence in the existing browser save. Furniture is cosmetic and does not change needs or academic results. This is a room-design preview, not a walkable interior or multiplayer invitation system.
