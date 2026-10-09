@@ -22,6 +22,13 @@
       <button id="panel-close">Leave</button>
     </div>
     <div id="toasts"></div>
+    <button id="phone-btn" class="glass hidden">Phone <kbd>P</kbd></button>
+    <div id="online" class="glass hidden off">Offline mode</div>
+    <div id="guide" class="glass hidden"></div>
+    <div id="phone" class="hidden">
+      <div class="ph-bar"><span id="phone-time"></span><span>UniAbuja</span><button id="phone-close" aria-label="Close phone">✕</button></div>
+      <div id="phone-screen"></div>
+    </div>
     <div id="joystick" class="hidden"><div id="stick"></div></div>
     <button id="interact-btn" class="hidden">Enter</button>
     <div id="fade"><span id="fade-text"></span></div>
@@ -30,9 +37,12 @@
         <h1>UniAbuja <span>Life</span></h1>
         <p>Live your University of Abuja story. Attend lectures, survive hostel life, hustle for money and keep your GPA up.</p>
         <input id="name" maxlength="16" placeholder="Your name" autocomplete="off" />
+        <select id="faculty" aria-label="Faculty"></select>
+        <select id="dept" aria-label="Department"></select>
+        <select id="residence" aria-label="Where you live"></select>
         <button id="start">New game</button>
         <button id="continue" class="secondary hidden"></button>
-        <p class="hint">WASD / arrows to move · Shift to run · Drag to look · Scroll to zoom · E to enter buildings or chat</p>
+        <p class="hint">WASD / arrows to move · Shift to run · Drag to look · Scroll to zoom · E to enter buildings or chat · P for your phone</p>
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

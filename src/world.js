@@ -3,6 +3,7 @@ import * as THREE from 'three';
 export const ROADS_Z = [35, -10, -55];
 const CROSS_HALF = 92;
 
+const HOSTEL_BLURB = 'Sleep, cook and gist with your roommates. Water and light are not guaranteed.';
 const FAC_BLURB = 'Lectures run 08:00–16:00. Every 5th day is test day: write it here between 09:00 and 15:00.';
 
 export const LOCATIONS = [
@@ -28,10 +29,11 @@ export const LOCATIONS = [
   { id: 'law', name: 'Faculty of Law', actions: 'faculty', x: -28, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#fdecea', roof: 0x8e0000, blurb: FAC_BLURB },
   { id: 'socsci', name: 'Faculty of Social Sciences', actions: 'faculty', x: 28, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#eef6ee', roof: 0x6a1b9a, blurb: FAC_BLURB },
   { id: 'arts', name: 'Faculty of Arts', actions: 'faculty', x: 65, z: -30, w: 20, d: 14, h: 10, door: [0, 1], color: '#fce4ec', roof: 0xad1457, blurb: FAC_BLURB },
-  { id: 'hostel', name: 'Female Hostels', actions: 'hostel', x: -72, z: -80, w: 28, d: 14, h: 12, door: [0, 1], color: '#f8e1e7', roof: 0x6d4c41,
-    blurb: 'Three female hostel blocks. Sleep, cook and gist with your roommates. Water and light are not guaranteed.' },
-  { id: 'hostel-m', name: 'Male Hostels', actions: 'hostel', x: -30, z: -80, w: 24, d: 14, h: 12, door: [0, 1], color: '#f0e0c0', roof: 0x4e342e,
-    blurb: 'Two male hostel blocks. Sleep, cook and gist with your roommates. Water and light are not guaranteed.' },
+  { id: 'hostel-og', name: 'Old Girls Hostel', actions: 'hostel', x: -82, z: -80, w: 16, d: 14, h: 12, door: [0, 1], color: '#f8e1e7', roof: 0x6d4c41, blurb: HOSTEL_BLURB },
+  { id: 'hostel-ng', name: 'New Girls Hostel', actions: 'hostel', x: -61, z: -80, w: 16, d: 14, h: 12, door: [0, 1], color: '#fbe9f0', roof: 0x8d6e63, blurb: HOSTEL_BLURB },
+  { id: 'hostel-ob', name: 'Old Boys Hostel', actions: 'hostel', x: -40, z: -80, w: 16, d: 14, h: 12, door: [0, 1], color: '#f0e0c0', roof: 0x4e342e, blurb: HOSTEL_BLURB },
+  { id: 'hostel-int', name: 'International Hostel', actions: 'hostel', x: -19, z: -80, w: 16, d: 14, h: 12, door: [0, 1], color: '#e3f2fd', roof: 0x1e3a8a, blurb: HOSTEL_BLURB },
+  { id: 'hostel-pg', name: 'Postgraduate Hostel', actions: 'hostel', x: 15, z: -80, w: 16, d: 14, h: 12, door: [0, 1], color: '#ede7f6', roof: 0x4a148c, blurb: HOSTEL_BLURB },
   { id: 'sports', name: 'Sports Complex', actions: 'sports', x: 45, z: -82, w: 40, d: 26, h: 3, door: [0, 1], kind: 'field', roof: 0x2e7d32,
     blurb: 'Football, jogging and inter-faculty matches.' },
 ];

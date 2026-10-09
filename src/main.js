@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { buildWorld, makeLabel } from './world.js';
 import { makeCharacter, animateWalk } from './character.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
+import { FACULTIES, AREAS, CAMPUS_FARE, CAMPUS_RIDE_MINS, WEEKDAYS, timetable } from './campus.js';
+import { ROADS_Z } from './world.js';
 
 const $ = (id) => document.getElementById(id);
 const GAME_MIN_PER_SEC = 1.5;
@@ -122,6 +124,8 @@ let drag = null;
 
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') { if (e.code === 'Enter') $('start').click(); return; }
+  if (e.code === 'KeyP' && state) { togglePhone(); return; }
+  if (e.code === 'Escape') closePhone();
   keys.add(e.code);
   if (!state) return;
   if (e.code === 'KeyE') tryInteract();
@@ -169,6 +173,11 @@ let nearby = null, promptKey = '';
 const warned = { hunger: false, energy: false };
 
 function toast(msg, kind = '') {
+  if (state) {
+    state.inbox ??= [];
+    state.inbox.unshift({ t: `Day ${state.day} ${fmtTime(state.minutes)}`, msg });
+    state.inbox.length = Math.min(state.inbox.length, 40);
+  }
   const el = document.createElement('div');
   el.className = `toast glass ${kind}`;
   el.textContent = msg;
@@ -308,6 +317,8 @@ function renderPanel(force = false) {
 }
 
 function openPanel(L) {
+  state.here = L.id;
+  $('panel-close').classList.toggle('hidden', !!state.away);
   panelOpen = true;
   panelLoc = L;
   renderPanel(true);
@@ -315,17 +326,20 @@ function openPanel(L) {
   promptKey = '__';
 }
 function closePanel() {
-  if (busy) return;
+  if (busy || state?.away) return;
   panelOpen = false;
   $('panel').classList.add('hidden');
 }
 
 async function doAction(a) {
+  if (a.ride) return rideKeke(a.ride);
   if (busy) return;
+  const before = state.money;
   busy = true;
   fade(true, `${a.label}…`);
   await sleep(850);
   const res = perform(state, a, notify);
+  if (state.money !== before) logTx(a.label, state.money - before);
   renderHud();
   renderPanel(true);
   await sleep(200);
@@ -450,8 +464,188 @@ function updateCamera(snap = false) {
 }
 
 // ---------- start ----------
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const p2 = (n) => String(n).padStart(2, '0');
+const locById = (id) => world.locations.find((L) => L.id === id);
+
+function migrate(s) {
+  s.faculty ??= 'science'; s.dept ??= 'Computer Science'; s.deptCode ??= 'CSC';
+  if (!locById(s.residence) && !AREAS.some((A) => A.id === s.residence)) s.residence = 'hostel-ob';
+  s.inbox ??= []; s.tx ??= []; s.away ??= null;
+}
+
+function logTx(label, amt) {
+  state.tx ??= [];
+  state.tx.unshift({ t: `Day ${state.day} ${fmtTime(state.minutes)}`, label, amt });
+  state.tx.length = Math.min(state.tx.length, 30);
+}
+
+function openArea(id) {
+  const A = AREAS.find((x) => x.id === id);
+  player.visible = false;
+  openPanel({ id: A.id, name: A.name, blurb: A.blurb + (state.residence === A.id ? ' Your lodge is here.' : ''), actions: 'area-' + A.id });
+}
+
+async function rideKeke(dest) {
+  if (busy) return;
+  const A = AREAS.find((x) => x.id === dest), L = locById(dest);
+  const from = state.away && AREAS.find((x) => x.id === state.away);
+  if (A && from) return toast('Take a keke back to campus first.', 'warn');
+  const fare = A ? A.fare : from ? from.fare : CAMPUS_FARE;
+  const mins = A ? A.mins : from ? from.mins : CAMPUS_RIDE_MINS;
+  const name = (A || L).name;
+  if (state.money < fare) return toast(`Not enough money for the keke (${fmtMoney(fare)})`, 'bad');
+  closePhone();
+  guideTo(null);
+  busy = true;
+  fade(true, `Keke to ${name}… ${fmtMoney(fare)}`);
+  await sleep(1100);
+  advance(state, mins, {}, notify);
+  state.money -= fare;
+  logTx(`Keke to ${name}`, -fare);
+  busy = false;
+  if (A) {
+    state.away = A.id;
+    openArea(A.id);
+  } else {
+    state.away = null;
+    player.visible = true;
+    panelOpen = false;
+    $('panel').classList.add('hidden');
+    player.position.set(L.doorPoint.x, 0, L.doorPoint.z);
+    updateCamera(true);
+  }
+  renderHud();
+  fade(false);
+  toast(`You arrived at ${name}.`, 'good');
+  save();
+}
+
+const guideArrow = new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.3, 12).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfacc15, fog: false, depthTest: false }));
+const beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.7, 0.7, 40, 16, 1, true), new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.5, depthWrite: false, fog: false, side: THREE.DoubleSide }));
+guideArrow.visible = beacon.visible = false;
+guideArrow.renderOrder = 10;
+scene.add(guideArrow, beacon);
+let guide = null, guideText = '';
+function guideTo(L) {
+  guide = L;
+  guideArrow.visible = beacon.visible = !!L;
+  $('guide').classList.toggle('hidden', !L);
+  if (L) beacon.position.set(L.doorPoint.x, 20, L.doorPoint.z);
+}
+function updateGuide() {
+  if (!guide) return;
+  const dx = guide.doorPoint.x - player.position.x, dz = guide.doorPoint.z - player.position.z, d = Math.hypot(dx, dz);
+  if (d < 3) { toast(`You have arrived at ${guide.name}.`, 'good'); guideTo(null); return; }
+  guideArrow.position.set(player.position.x + (dx / d) * 0.6, 3.5, player.position.z + (dz / d) * 0.6);
+  guideArrow.rotation.y = Math.atan2(dx, dz);
+  const t = `To ${guide.name} · ${Math.round(d)} m`;
+  if (t !== guideText) $('guide').textContent = guideText = t;
+}
+
+const APPS = [['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['wallet', 'Wallet', '#a855f7'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
+const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
+let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
+function togglePhone() { phoneApp ? closePhone() : openPhone(); }
+function openPhone(app = 'home') {
+  if (!state || busy) return;
+  phoneApp = app;
+  $('phone').classList.remove('hidden');
+  renderPhone();
+}
+function closePhone() { phoneApp = null; $('phone').classList.add('hidden'); }
+function renderPhone() {
+  const scr = $('phone-screen');
+  const head = (t) => `<div class="ph-head"><button class="ph-back" data-app="home" aria-label="Back">‹</button><b>${t}</b></div>`;
+  const fac = FACULTIES[state.faculty].name;
+  $('phone-time').textContent = fmtTime(state.minutes);
+  let h = '';
+  if (phoneApp === 'home') {
+    h = `<div class="ph-greet">Hi ${esc(state.name)}<small>${esc(state.dept)} · ${fac}</small></div><div class="ph-grid">${APPS.map(([id, n, c]) => `<button class="ph-app" data-app="${id}"><i style="background:${c}">${n[0]}</i>${n}</button>`).join('')}</div>`;
+  } else if (phoneApp === 'timetable') {
+    const today = (state.day - 1) % 7;
+    h = head('Timetable') + `<p class="ph-sub">${esc(state.dept)} · 100 Level</p>` +
+      timetable(state.deptCode).map((d, i) => `<div class="ph-row ${i === today ? 'today' : ''}"><b>${WEEKDAYS[i]}</b><span>${d.map((l) => `${p2(l.start)}:00 ${l.code}`).join(' · ')}</span></div>`).join('') +
+      `<p class="ph-sub">Lectures hold at ${fac}. Arrive within 45 minutes of the start. No classes on weekends.</p>`;
+  } else if (phoneApp === 'keke') {
+    const from = state.away && AREAS.find((A) => A.id === state.away);
+    const dests = [...(from ? [] : AREAS.map((A) => ({ id: A.id, name: `${A.name} (off campus)`, fare: A.fare }))),
+      ...world.locations.filter((L) => L.kind !== 'gate').map((L) => ({ id: L.id, name: L.name, fare: from ? from.fare : CAMPUS_FARE }))];
+    h = head('Keke') + `<p class="ph-sub">${from ? `You're in ${from.name}. Where on campus should the keke drop you?` : 'Pick a destination. Campus rides cost ₦100.'}</p>` +
+      dests.map((d) => `<button class="ph-row ph-btn" data-ride="${d.id}"><span>${esc(d.name)}</span><b>${fmtMoney(d.fare)}</b></button>`).join('');
+  } else if (phoneApp === 'wallet') {
+    h = head('Wallet') + `<div class="ph-bal">${fmtMoney(state.money)}<small>Allowance: +₦10,000 every 7 days</small></div>` +
+      (state.tx.length ? state.tx.map((t) => `<div class="ph-row"><span>${esc(t.label)}<small>${t.t}</small></span><b class="${t.amt < 0 ? 'neg' : 'pos'}">${t.amt < 0 ? '−' : '+'}${fmtMoney(Math.abs(t.amt))}</b></div>`).join('') : '<p class="ph-sub">No transactions yet.</p>');
+  } else if (phoneApp === 'messages') {
+    h = head('Messages') + (state.inbox.length ? state.inbox.map((m) => `<div class="ph-row"><span>${esc(m.msg)}<small>${m.t}</small></span></div>`).join('') : '<p class="ph-sub">No messages yet.</p>');
+  } else if (phoneApp === 'online') {
+    h = head('Online') + `<div class="ph-bal">${online ?? 1}<small>${online ? 'players online now' : 'Offline mode: multiplayer server not connected yet'}</small></div><p class="ph-sub">Once the game is hosted with the presence server, this shows everyone playing UniAbuja Life.</p>`;
+  } else if (phoneApp === 'map') {
+    h = head('Map') + `<div class="ph-tabs"><button data-tab="campus" class="${mapTab === 'campus' ? 'on' : ''}">Campus</button><button data-tab="real" class="${mapTab === 'real' ? 'on' : ''}">Real map</button></div>` +
+      (mapTab === 'campus'
+        ? '<canvas id="ph-map" width="260" height="300"></canvas><p class="ph-sub">Tap a place to get directions. Follow the yellow arrow.</p>'
+        : `<div class="ph-chips">${REAL.map(([n, q]) => `<button data-q="${esc(q)}" class="${q === realQ ? 'on' : ''}">${n}</button>`).join('')}</div><iframe class="ph-iframe" loading="lazy" src="https://maps.google.com/maps?q=${encodeURIComponent(realQ)}&z=14&output=embed" title="Google Map"></iframe><p class="ph-sub">Real Google Map of the area. The 3D campus is not to scale yet.</p>`);
+  }
+  scr.innerHTML = h;
+  if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap();
+}
+const MAP_R = 112;
+function drawPhoneMap() {
+  const c = $('ph-map');
+  if (!c) return;
+  const g = c.getContext('2d'), W = c.width, H = c.height;
+  const X = (x) => ((x + MAP_R) / (2 * MAP_R)) * W, Z = (z) => ((z + MAP_R) / (2 * MAP_R)) * H;
+  g.fillStyle = '#5f8f3e'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#374151';
+  g.fillRect(X(-4), Z(-110), X(4) - X(-4), Z(95) - Z(-110));
+  for (const rz of ROADS_Z) g.fillRect(X(-92), Z(rz - 4), X(92) - X(-92), Z(rz + 4) - Z(rz - 4));
+  g.font = 'bold 7px system-ui'; g.textAlign = 'center';
+  for (const L of world.locations) {
+    g.fillStyle = guide === L ? '#facc15' : mapColor(L);
+    g.fillRect(X(L.x - L.w / 2), Z(L.z - L.d / 2), X(L.x + L.w / 2) - X(L.x - L.w / 2), Z(L.z + L.d / 2) - Z(L.z - L.d / 2));
+    g.fillStyle = '#fff';
+    g.fillText(L.name.replace('Faculty of ', '').replace(' Hostel', '').replace('Old Girls', 'OG').replace('New Girls', 'NG').replace('Old Boys', 'OB').replace('International', 'Intl').replace('Postgraduate', 'PG').replace('Environmental Sciences', 'Env. Sci.').replace('Management Sciences', 'Mgt. Sci.').replace('University ', ''), X(L.x), Z(L.z) + 3);
+  }
+  g.fillStyle = '#ef4444'; g.beginPath(); g.arc(X(player.position.x), Z(player.position.z), 4, 0, 7); g.fill();
+  c.onclick = (e) => {
+    const r = c.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * 2 * MAP_R - MAP_R, z = ((e.clientY - r.top) / r.height) * 2 * MAP_R - MAP_R;
+    const L = world.locations.find((l) => Math.abs(x - l.x) < l.w / 2 + 4 && Math.abs(z - l.z) < l.d / 2 + 4);
+    if (!L) return;
+    if (state.away) return toast('Take a keke back to campus first.', 'warn');
+    guideTo(L);
+    closePhone();
+    toast(`Directions set to ${L.name}. Follow the yellow arrow.`);
+  };
+}
+$('phone-screen').addEventListener('click', (e) => {
+  const b = e.target.closest('button');
+  if (!b) return;
+  if (b.dataset.app) { phoneApp = b.dataset.app; renderPhone(); }
+  else if (b.dataset.ride) rideKeke(b.dataset.ride);
+  else if (b.dataset.tab) { mapTab = b.dataset.tab; renderPhone(); }
+  else if (b.dataset.q) { realQ = b.dataset.q; renderPhone(); }
+});
+$('phone-close').onclick = closePhone;
+$('phone-btn').onclick = togglePhone;
+
+const PRESENCE_URL = import.meta.env.VITE_PRESENCE_URL || '/presence';
+const clientId = Math.random().toString(36).slice(2);
+let online = null;
+async function pingPresence() {
+  try {
+    const r = await fetch(PRESENCE_URL, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: clientId }) });
+    if (!r.ok) throw new Error();
+    online = (await r.json()).online || null;
+  } catch { online = null; }
+  $('online').textContent = online ? `${online} online` : 'Offline mode';
+  $('online').classList.toggle('off', !online);
+}
+setInterval(() => state && pingPresence(), 20000);
+
 function startGame(s, pos, rot) {
   state = s;
+  migrate(state);
   player.position.set(pos[0], 0, pos[1]);
   player.rotation.y = rot;
   cam.yaw = rot - Math.PI;
@@ -468,8 +662,13 @@ function startGame(s, pos, rot) {
   document.activeElement?.blur();
   updateCamera(true);
   renderHud();
+  $('phone-btn').classList.remove('hidden');
+  $('online').classList.remove('hidden');
+  pingPresence();
+  player.visible = !state.away;
+  if (state.away) openArea(state.away);
   toast(`Welcome to UniAbuja, ${state.name}!`, 'good');
-  setTimeout(() => toast('Walk onto a glowing yellow ring to enter a building. Lectures run 08:00–16:00.'), 1200);
+  setTimeout(() => toast('Walk onto a glowing yellow ring to enter a building. Press P for your phone: timetable, map and keke.'), 1200);
   setTimeout(() => toast('Your first test is on Day 5. Study at the library and attend lectures!'), 2600);
 }
 
@@ -480,7 +679,21 @@ if (saved?.state) {
   $('name').value = saved.state.name;
   $('continue').onclick = () => startGame(saved.state, saved.pos, saved.rot);
 }
-$('start').onclick = () => startGame(newState(($('name').value.trim() || 'Fresher').slice(0, 16)), [0, 84], Math.PI);
+const facSel = $('faculty'), deptSel = $('dept'), resSel = $('residence');
+facSel.innerHTML = Object.entries(FACULTIES).map(([id, f]) => `<option value="${id}">${f.name}</option>`).join('');
+const fillDepts = () => { deptSel.innerHTML = FACULTIES[facSel.value].depts.map(([n, c]) => `<option value="${c}">${n}</option>`).join(''); };
+facSel.onchange = fillDepts;
+fillDepts();
+resSel.innerHTML = '<optgroup label="On campus">' + world.locations.filter((L) => L.actions === 'hostel').map((L) => `<option value="${L.id}">${L.name}</option>`).join('') +
+  '</optgroup><optgroup label="Off campus (keke daily)">' + AREAS.map((A) => `<option value="${A.id}">Lodge in ${A.name}</option>`).join('') + '</optgroup>';
+$('start').onclick = () => {
+  const f = facSel.value, code = deptSel.value, res = resSel.value;
+  const s = newState(($('name').value.trim() || 'Fresher').slice(0, 16), { faculty: f, dept: FACULTIES[f].depts.find((d) => d[1] === code)[0], deptCode: code, residence: res });
+  const home = locById(res);
+  if (!home) s.away = res;
+  const p = (home || locById('keke')).doorPoint;
+  startGame(s, [p.x, p.z], Math.PI);
+};
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight;
@@ -499,6 +712,7 @@ function loop() {
     advance(state, dt * GAME_MIN_PER_SEC, { running: isRunning && moving }, notify);
     updatePlayer(dt);
     updateNearby();
+    updateGuide();
     checkVitals();
   } else if (!state) {
     introSpin += dt * 0.05;
@@ -516,7 +730,10 @@ function loop() {
   updateLighting(state ? state.minutes / 60 : 9.5);
   updateCamera();
   hudTimer += dt;
-  if (hudTimer > 0.25 && state) { hudTimer = 0; renderHud(); renderPanel(); drawMinimap(); }
+  if (hudTimer > 0.25 && state) {
+    hudTimer = 0; renderHud(); renderPanel(); drawMinimap();
+    if (phoneApp) { $('phone-time').textContent = fmtTime(state.minutes); if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap(); }
+  }
   saveTimer += dt;
   if (saveTimer > 5) { saveTimer = 0; save(); }
   renderer.render(scene, camera);
