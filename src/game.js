@@ -13,7 +13,7 @@ export function gpa(s) {
 }
 
 export function newState(name, o = {}) {
-  return { name, faculty: o.faculty || 'science', dept: o.dept || 'Computer Science', deptCode: o.deptCode || 'CSC', residence: o.residence || 'hostel-ob', away: null, inbox: [], tx: [], day: 1, minutes: 7 * 60, money: 5000, energy: 85, hunger: 75, hygiene: 80, bladder: 80, social: 60, knowledge: 0, pantry: 2, grades: [], examDone: false, lastAllowanceDay: 1, strike: 0 };
+  return { name, faculty: o.faculty || 'science', dept: o.dept || 'Computer Science', deptCode: o.deptCode || 'CSC', residence: o.residence || 'hostel-ob', away: null, inbox: [], tx: [], day: 1, minutes: 7 * 60, money: 5000, energy: 85, hunger: 75, savings: 0, hygiene: 80, bladder: 80, social: 60, knowledge: 0, pantry: 2, grades: [], examDone: false, lastAllowanceDay: 1, strike: 0 };
 }
 
 function gradeFor(score) {
@@ -41,6 +41,7 @@ function newDay(s, notify) {
     s.money += 10000;
     notify('Your parents sent your weekly allowance: +₦10,000', 'good');
   }
+  if (s.savings > 0) s.savings += Math.round(s.savings * 0.01);
   campusEvent(s, notify);
   if (s.money < 1000) notify('Sapa don land! You have less than ₦1,000. Time to hustle.', 'bad');
   if (isExamDay(s)) notify(`Day ${s.day} is TEST DAY! Write it at any faculty between 09:00 and 15:00.`, 'warn');
@@ -133,7 +134,7 @@ export const ACTIONS = {
   senate: [
     { label: 'Check your results', mins: 5, results: true },
     { label: 'Work-study job', mins: 180, hours: [8, 16], earn: 3000, fx: { energy: -15 }, msg: 'Filing and errands at the registry. +₦3,000' },
-    { label: 'Sort out course registration', mins: 60, hours: [9, 15], fx: { knowledge: 2, social: -3 }, msg: 'The queue was long, but your courses are registered.' },
+    { label: 'Sort out course registration', reg: true, mins: 60, hours: [9, 15], fx: { knowledge: 2, social: -3 }, msg: 'The queue was long, but your courses are registered.' },
   ],
   sug: [
     { label: 'Attend SUG meeting', mins: 60, hours: [16, 20], fx: { social: 20 }, msg: 'Heated debate about hostel water supply.' },
@@ -214,6 +215,11 @@ export function perform(s, a, notify) {
   if (a.earn) s.money += a.earn;
   if (a.pantry) s.pantry += a.pantry;
   if (a.vote) s.votedDay = s.day;
+  if (a.reg) s.registered = true;
+  if (a.gig) {
+    if (s.gigsDay !== s.day) { s.gigsDay = s.day; s.gigsDone = []; }
+    s.gigsDone.push(a.gig);
+  }
   if (queue) msg += ' The morning bathroom queue cost you 30 extra minutes.';
   if (lec) { s.attended = s.day + '-' + lec.start; msg = `You attended ${lec.code}. Solid notes taken.`; }
   if (a.test) {

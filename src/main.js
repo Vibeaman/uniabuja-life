@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { buildWorld, makeLabel } from './world.js';
 import { makeCharacter, animateWalk } from './character.js';
 import { ACTIONS, newState, advance, perform, actionStatus, isExamDay, gpa, fmtMoney, fmtTime, fmtDur, DAY_NAMES, clamp } from './game.js';
+import { CHOW, CHOW_FEE, chowAction, GIGS, todaysGigs, gistFeed, matricNo, degreeClass } from './apps.js';
 import { FACULTIES, AREAS, CAMPUS_FARE, CAMPUS_RIDE_MINS, WEEKDAYS, timetable } from './campus.js';
 import { ROADS_Z } from './world.js';
 import { ensureDay, track, level, missionDef, STREAK_REWARDS, BONUS } from './missions.js';
@@ -478,7 +479,7 @@ const locById = (id) => world.locations.find((L) => L.id === id);
 function migrate(s) {
   s.faculty ??= 'science'; s.dept ??= 'Computer Science'; s.deptCode ??= 'CSC';
   if (!locById(s.residence) && !AREAS.some((A) => A.id === s.residence)) s.residence = 'hostel-ob';
-  s.inbox ??= []; s.tx ??= []; s.away ??= null; s.hygiene ??= 80; s.bladder ??= 80;
+  s.inbox ??= []; s.tx ??= []; s.away ??= null; s.hygiene ??= 80; s.bladder ??= 80; s.savings ??= 0;
 }
 
 function logTx(label, amt) {
@@ -551,7 +552,7 @@ function updateGuide() {
   if (t !== guideText) $('guide').textContent = guideText = t;
 }
 
-const APPS = [['missions', 'Missions', '#ef4444'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['wallet', 'Wallet', '#a855f7'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
+const APPS = [['missions', 'Missions', '#ef4444'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
 const REAL = [['Main campus', 'University of Abuja Main Campus, Airport Road, Abuja'], ['Gwagwalada', 'Gwagwalada, FCT, Nigeria'], ['Iddo', 'Iddo, Abuja, Nigeria'], ['Giri', 'Giri, Abuja, Nigeria']];
 let phoneApp = null, mapTab = 'campus', realQ = REAL[0][1];
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
@@ -599,6 +600,31 @@ function renderPhone() {
         return `<div class="ph-mission ${m.done ? 'done' : ''}"><div><b>${d.label}</b><small>${d.desc}</small>${bar(m.prog / d.goal)}</div><span>${m.done ? 'Done' : prog}<small>+${fmtMoney(d.money)} · +${d.rep} Rep</small></span></div>`;
       }).join('') +
       `<p class="ph-sub">Finish all three: +${fmtMoney(BONUS.money)} · +${BONUS.rep} Rep${state.ms.bonus ? ' (claimed)' : ''}</p>`;
+  } else if (phoneApp === 'chow') {
+    h = head('Chow') + `<p class="ph-sub">Food delivered to you anywhere on campus or at your lodge. Delivery fee ${fmtMoney(CHOW_FEE)}, about 40 minutes.</p>` +
+      CHOW.map((c, i) => {
+        const a = chowAction(i), st = actionStatus(state, a);
+        return `<button class="ph-row ph-btn" data-chow="${i}" ${st.ok ? '' : 'disabled'}><span>${esc(c[0])}<small>${st.ok ? `+${c[2]} Food` : esc(st.reason)}</small></span><b>${fmtMoney(a.cost)}</b></button>`;
+      }).join('');
+  } else if (phoneApp === 'hustle') {
+    h = head('Hustle') + '<p class="ph-sub">Today\'s gigs. Each one can be done once a day, from anywhere.</p>' +
+      todaysGigs(state).map((g) => {
+        const st = actionStatus(state, g);
+        return `<button class="ph-row ph-btn" data-gig="${g.id}" ${st.ok ? '' : 'disabled'}><span>${esc(g.label)}<small>${st.ok ? (g.mins >= 60 ? g.mins / 60 + 'h' : g.mins + 'm') : esc(st.reason)}</small></span><b class="pos">+${fmtMoney(g.earn)}</b></button>`;
+      }).join('');
+  } else if (phoneApp === 'bank') {
+    h = head('UniBank') + `<div class="ph-bal">${fmtMoney(state.money)}<small>Current account</small></div><div class="ph-bal sm">${fmtMoney(state.savings)}<small>Savings · earns 1% every day</small></div>` +
+      `<div class="ph-chips">${[['dep:1000', 'Save ₦1k'], ['dep:5000', 'Save ₦5k'], ['wd:1000', 'Withdraw ₦1k'], ['wd:all', 'Withdraw all']].map(([k, n]) => `<button data-bank="${k}">${n}</button>`).join('')}</div>` +
+      '<button class="ph-row ph-btn" data-bank="ask"><span>Ask home for money<small>Once every 3 days. No promises.</small></span><b>›</b></button>';
+  } else if (phoneApp === 'gist') {
+    h = head('Campus Gist') + gistFeed(state).map(([u, t, hot, likes]) => `<div class="ph-post ${hot ? 'hot' : ''}"><b>${u}</b><p>${esc(t)}</p><small>${likes} likes</small></div>`).join('');
+  } else if (phoneApp === 'portal') {
+    const g = gpa(state), res = (locById(state.residence) || AREAS.find((A) => A.id === state.residence))?.name || '';
+    h = head('Student Portal') + `<div class="ph-card"><b>${esc(state.name)}</b><small>${matricNo(state)}</small><small>${esc(state.dept)} · ${fac} · 100 Level</small><small>Residence: ${esc(res)}</small></div>` +
+      `<div class="ph-row"><span>Course registration</span><b class="${state.registered ? 'pos' : 'neg'}">${state.registered ? 'Registered' : 'Pending'}</b></div>` +
+      (state.registered ? '' : '<p class="ph-sub">Go to the Senate Building to sort out your course registration.</p>') +
+      `<div class="ph-bal">${g === null ? '—' : g.toFixed(2)}<small>CGPA / 5.00 · ${g === null ? 'No results yet' : degreeClass(g)}</small></div>` +
+      (state.grades.length ? state.grades.map((r) => `<div class="ph-row"><span>Test · Day ${r.day}</span><b>${r.score}% · ${r.grade}</b></div>`).join('') : '<p class="ph-sub">No results yet. Tests hold every 5th day at your faculty.</p>');
   } else if (phoneApp === 'online') {
     h = head('Online') + `<div class="ph-bal">${online ?? 1}<small>${online ? 'players online now' : 'Offline mode: multiplayer server not connected yet'}</small></div><p class="ph-sub">Once the game is hosted with the presence server, this shows everyone playing UniAbuja Life.</p>`;
   } else if (phoneApp === 'map') {
@@ -656,9 +682,33 @@ $('phone-screen').addEventListener('click', (e) => {
   if (!b) return;
   if (b.dataset.app) { phoneApp = b.dataset.app; renderPhone(); }
   else if (b.dataset.ride) rideKeke(b.dataset.ride);
+  else if (b.dataset.chow) { closePhone(); doAction(chowAction(+b.dataset.chow)); }
+  else if (b.dataset.gig) { closePhone(); doAction(GIGS.find((g) => g.id === b.dataset.gig)); }
+  else if (b.dataset.bank) bank(b.dataset.bank);
   else if (b.dataset.tab) { mapTab = b.dataset.tab; renderPhone(); }
   else if (b.dataset.q) { realQ = b.dataset.q; renderPhone(); }
 });
+function bank(k) {
+  const [op, v] = k.split(':');
+  if (op === 'dep') {
+    const amt = Math.min(+v, state.money);
+    if (amt <= 0) return toast('No money to save.', 'bad');
+    state.money -= amt; state.savings += amt; logTx('Moved to savings', -amt);
+  } else if (op === 'wd') {
+    const amt = v === 'all' ? state.savings : Math.min(+v, state.savings);
+    if (amt <= 0) return toast('Your savings are empty.', 'bad');
+    state.savings -= amt; state.money += amt; logTx('From savings', amt);
+  } else if (op === 'ask') {
+    if (state.lastAsk && state.day - state.lastAsk < 3) return toast('You just asked. Wait a few days before begging again.', 'warn');
+    state.lastAsk = state.day;
+    if (Math.random() < 0.55) {
+      const amt = 1000 * (2 + Math.floor(Math.random() * 4));
+      state.money += amt; logTx('Money from home', amt);
+      notify(`Mum sent ${fmtMoney(amt)}. "Spend it wisely o!"`, 'good');
+    } else notify('Dad replied: "Did you not just collect allowance? Manage."', 'warn');
+  }
+  renderHud(); renderPhone(); save();
+}
 $('phone-close').onclick = closePhone;
 $('phone-btn').onclick = togglePhone;
 
