@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { createNavigator } from './navigation.js';
+import { mountInterior, INTERIORS } from './interiors.js';
 import { buildWorld, makeLabel } from './world.js';
 import { makeCharacter, animateWalk, applyCharacterAppearance } from './character.js';
 import { OUTFITS, HAIRSTYLES, SKIN_TONES, ensureWardrobe, changeAppearance, outfitById } from './wardrobe.js';
@@ -20,7 +22,7 @@ const isTouch = matchMedia('(pointer: coarse)').matches;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, isTouch ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFShadowMap;
@@ -35,13 +37,23 @@ const hemi = new THREE.HemisphereLight(0xdfefff, 0x4a5a2a, 0.9);
 scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 2);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(isTouch ? 1024 : 2048, isTouch ? 1024 : 2048);
 Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 260 });
 sun.shadow.bias = -0.0005;
 sun.shadow.normalBias = 0.03;
 scene.add(sun, sun.target);
 
 const world = buildWorld(scene);
+const navigator = createNavigator(world.boxes, world.circles);
+const departureNavigator = createNavigator(world.boxes, world.circles, { radius: 0.44 });
+const raycaster = new THREE.Raycaster(), tapPoint = new THREE.Vector2();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const groundHit = new THREE.Vector3();
+let travelRoute = [], travelLoc = null;
+const routeLine = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xfde047, depthTest: false, transparent: true, opacity: 0.85 }));
+routeLine.renderOrder = 5; routeLine.visible = false; scene.add(routeLine);
+const destinationRing = new THREE.Mesh(new THREE.RingGeometry(0.7, 1.1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfde047, depthTest: false, side: THREE.DoubleSide }));
+destinationRing.visible = false; scene.add(destinationRing);
 
 const player = makeCharacter({ shirt: '#15803d', pants: '#1f2937', bag: '#f8fafc' });
 player.position.set(0, 0, 84);
@@ -126,13 +138,14 @@ function updateNpc(n, dt) {
 
 // ---------- input ----------
 const keys = new Set();
-const cam = { yaw: 0, pitch: 0.38, dist: 10 };
+const cam = { yaw: 0, pitch: 1.05, dist: 42, aerial: true };
 const joy = { x: 0, y: 0, id: null };
 let drag = null;
 
 addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT') { if (e.code === 'Enter') $('start').click(); return; }
   if (e.code === 'KeyP' && state) { togglePhone(); return; }
+  if (e.code === 'KeyM' && state) { e.preventDefault(); openGameMap(); return; }
   if (e.code === 'Escape') closePhone();
   if (phoneApp) return;
   keys.add(e.code);
@@ -144,17 +157,81 @@ addEventListener('keyup', (e) => keys.delete(e.code));
 addEventListener('blur', () => keys.clear());
 
 const cv = renderer.domElement;
-cv.addEventListener('pointerdown', (e) => { drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerdown', (e) => {
+  if (!e.isPrimary || e.button !== 0) return;
+  drag = { id: e.pointerId, x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY, moved: false };
+  cv.setPointerCapture(e.pointerId);
+});
 cv.addEventListener('pointermove', (e) => {
   if (!drag || e.pointerId !== drag.id) return;
+  if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 8) return;
+  drag.moved = true;
   cam.yaw -= (e.clientX - drag.x) * 0.006;
-  cam.pitch = clamp(cam.pitch + (e.clientY - drag.y) * 0.004, 0.08, 1.25);
+  cam.pitch = clamp(cam.pitch + (e.clientY - drag.y) * 0.004, cam.aerial ? 0.7 : 0.08, 1.4);
   drag.x = e.clientX; drag.y = e.clientY;
 });
-const endDrag = (e) => { if (drag && e.pointerId === drag.id) drag = null; };
+const endDrag = (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  const tap = !drag.moved && e.type === 'pointerup'; drag = null;
+  if (tap && state && !panelOpen && !phoneApp && !busy && !state.away) {
+    tapPoint.set(e.clientX / innerWidth * 2 - 1, 1 - e.clientY / innerHeight * 2);
+    raycaster.setFromCamera(tapPoint, camera);
+    const hit = raycaster.intersectObjects(world.buildings, true)[0];
+    if (hit) { let obj = hit.object; while (obj && !obj.userData.location) obj = obj.parent; if (obj) { walkTo(obj.userData.location.doorPoint, obj.userData.location); return; } }
+    if (raycaster.ray.intersectPlane(groundPlane, groundHit)) walkTo({ x: groundHit.x, z: groundHit.z });
+  }
+};
 cv.addEventListener('pointerup', endDrag);
 cv.addEventListener('pointercancel', endDrag);
-cv.addEventListener('wheel', (e) => { cam.dist = clamp(cam.dist + e.deltaY * 0.01, 4, 24); }, { passive: true });
+cv.addEventListener('wheel', (e) => { cam.dist = clamp(cam.dist + e.deltaY * 0.02, cam.aerial ? 22 : 4, cam.aerial ? 85 : 24); }, { passive: true });
+
+function openGameMap() { mapTab = 'campus'; openPhone('map'); }
+$('map-btn').onclick = openGameMap;
+$('minimap').onclick = openGameMap;
+$('minimap').setAttribute('aria-label', 'Open gameplay map');
+$('minimap').setAttribute('role', 'button'); $('minimap').tabIndex = 0;
+$('minimap').onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') openGameMap(); };
+$('camera-btn').onclick = () => {
+  cam.aerial = !cam.aerial; cam.pitch = cam.aerial ? 1.05 : 0.38; cam.dist = cam.aerial ? 42 : 10;
+  $('camera-btn').textContent = cam.aerial ? 'Aerial view' : 'Follow view'; $('camera-btn').setAttribute('aria-pressed', String(cam.aerial)); updateCamera(true);
+};
+for (const [id, delta] of [['zoom-in', -6], ['zoom-out', 6]]) $(id).onclick = () => { cam.dist = clamp(cam.dist + delta, cam.aerial ? 22 : 4, cam.aerial ? 85 : 24); };
+$('stop-travel').onclick = () => stopTravel();
+$('dock-home').onclick = () => openPhone('room');
+$('dock-buy').onclick = () => { openPhone('room'); setDock('buy'); $('room-shop')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+$('dock-map').onclick = openGameMap;
+$('dock-phone').onclick = () => openPhone('home');
+function setDock(id) {
+  for (const key of ['home', 'buy', 'map', 'phone']) { const b = $(`dock-${key}`); b.classList.toggle('selected', key === id); if (key === id) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); }
+}
+function stopTravel() {
+  travelRoute = []; travelLoc = null; routeLine.visible = destinationRing.visible = false; $('travel').classList.add('hidden');
+}
+function walkTo(destination, L = null) {
+  if (!state || busy) return;
+  if (state.away) return toast('Take a keke back to campus first.', 'warn');
+  if (panelOpen) closePanel();
+  // A footprint tap always targets the entrance rather than the blocked room.
+  if (!L) L = world.locations.find(l => !['field', 'gate', 'shed'].includes(l.kind) && Math.abs(destination.x - l.x) <= l.w / 2 && Math.abs(destination.z - l.z) <= l.d / 2);
+  if (L) destination = L.doorPoint;
+  let departure = player.position, prefix = [];
+  // Manual walking can leave the avatar touching a wall (0.45 clearance).
+  // Step out safely before joining the wider automatic-routing clearance.
+  if (!navigator.free(departure) && departureNavigator.free(departure)) {
+    outer: for (const distance of [0.4, 0.8, 1.2, 1.6]) for (let i = 0; i < 16; i++) {
+      const angle = i * Math.PI / 8, p = { x: departure.x + Math.cos(angle) * distance, z: departure.z + Math.sin(angle) * distance };
+      if (navigator.free(p) && departureNavigator.clear(departure, p)) { departure = p; prefix = [p]; break outer; }
+    }
+  }
+  const planned = navigator.route(departure, destination), route = planned && [...prefix, ...planned];
+  if (!route) return toast('That spot is blocked or outside campus. Tap an open path or a building entrance.', 'warn');
+  stopTravel(); travelRoute = route; travelLoc = L;
+  keys.clear(); joy.x = joy.y = 0; stick.style.transform = '';
+  routeLine.geometry.dispose(); routeLine.geometry = new THREE.BufferGeometry().setFromPoints([player.position, ...route].map(p => new THREE.Vector3(p.x, 0.12, p.z)));
+  routeLine.visible = destinationRing.visible = true; destinationRing.position.set(destination.x, 0.15, destination.z);
+  $('travel-status').textContent = L ? `Walking to ${L.name}` : 'Walking to tapped spot'; $('travel').classList.remove('hidden');
+  closePhone(); guideTo(L);
+}
 
 const jEl = $('joystick'), stick = $('stick');
 function moveJoy(e) {
@@ -236,8 +313,16 @@ function updatePlayer(dt) {
   if (len > 1) { ix /= len; iy /= len; }
   isRunning = keys.has('ShiftLeft') || keys.has('ShiftRight') || Math.hypot(joy.x, joy.y) > 0.92;
   const speed = isRunning ? 8.5 : 4.5;
+  if (len > 0.05 && travelRoute.length) { stopTravel(); guideTo(null); }
   const fx = -Math.sin(cam.yaw), fz = -Math.cos(cam.yaw);
-  const mx = fx * iy - fz * ix, mz = fz * iy + fx * ix;
+  let mx = fx * iy - fz * ix, mz = fz * iy + fx * ix;
+  if (travelRoute.length && !panelOpen && !busy && !phoneApp) {
+    const t = travelRoute[0], dx = t.x - player.position.x, dz = t.z - player.position.z, d = Math.hypot(dx, dz);
+    if (d <= 0.08) {
+      player.position.x = t.x; player.position.z = t.z; travelRoute.shift();
+      if (!travelRoute.length) { const L = travelLoc; stopTravel(); guideTo(null); toast(L ? `Arrived at ${L.name}. Tap Enter to see inside.` : 'Arrived at your spot.', 'good'); save(); }
+    } else { const amount = Math.min(1, d / (speed * dt || 1)); mx = dx / d * amount; mz = dz / d * amount; }
+  }
   const mag = Math.hypot(mx, mz);
   moving = mag > 0.01;
   if (moving) {
@@ -298,7 +383,7 @@ function describe(a) {
   return parts.join(' · ');
 }
 
-let panelSig = '';
+let panelSig = '', interior = null, station = null;
 function renderPanel(force = false) {
   if (!panelOpen) return;
   const L = panelLoc;
@@ -311,6 +396,10 @@ function renderPanel(force = false) {
   $('panel-sub').textContent = L.blurb;
   const box = $('panel-actions');
   box.innerHTML = '';
+  if (station) {
+    const all = document.createElement('button'); all.className = 'action'; all.textContent = `At ${station.label} · Show all building actions`;
+    all.onclick = () => { station = null; renderPanel(true); }; box.append(all);
+  }
   list.forEach((a, i) => {
     const st = statuses[i];
     const b = document.createElement('button');
@@ -322,6 +411,7 @@ function renderPanel(force = false) {
     small.textContent = st.ok ? describe(a) : st.reason;
     b.append(strong, small);
     b.onclick = () => doAction(a);
+    if (station && !new RegExp(station.pattern, 'i').test(a.label) && a.storyOpt === undefined) b.classList.add('hidden');
     box.appendChild(b);
   });
   if (L.id === state.residence) {
@@ -332,17 +422,27 @@ function renderPanel(force = false) {
 }
 
 function openPanel(L) {
+  stopTravel(); guideTo(null); station = null;
+  interior?.dispose(); interior = null;
   state.here = L.id;
   $('panel-close').classList.toggle('hidden', !!state.away);
   panelOpen = true;
   panelLoc = L;
   renderPanel(true);
   $('panel').classList.remove('hidden');
+  setDock(INTERIORS[L.actions] ? 'home' : 'map');
+  $('panel-close').textContent = INTERIORS[L.actions] ? 'Exit to campus' : 'Leave';
+  if (INTERIORS[L.actions]) interior = mountInterior($('panel-interior'), L.actions, {
+    onExit: closePanel, appearance: state.appearance,
+    onStation: s => { if (!panelOpen || busy) return; station = s; renderPanel(true); $('panel-actions').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); },
+  });
   promptKey = '__';
 }
 function closePanel() {
   if (busy || state?.away) return;
   panelOpen = false;
+  setDock('map');
+  interior?.dispose(); interior = null; station = null;
   $('panel').classList.add('hidden');
 }
 
@@ -369,6 +469,7 @@ async function doAction(a) {
 }
 
 async function collapse() {
+  stopTravel(); guideTo(null); interior?.dispose(); interior = null;
   collapsing = busy = true;
   panelOpen = false;
   $('panel').classList.add('hidden');
@@ -521,6 +622,7 @@ async function rideKeke(dest) {
   const name = (A || L).name;
   if (state.money < fare) return toast(`Not enough money for the keke (${fmtMoney(fare)})`, 'bad');
   closePhone();
+  stopTravel(); interior?.dispose(); interior = null;
   guideTo(null);
   busy = true;
   fade(true, `Keke to ${name}… ${fmtMoney(fare)}`);
@@ -570,6 +672,7 @@ function updateGuide() {
 }
 
 const APPS = [['missions', 'Missions', '#ef4444'], ['stories', 'Stories', '#f59e0b'], ['map', 'Map', '#22c55e'], ['timetable', 'Timetable', '#3b82f6'], ['keke', 'Keke', '#facc15'], ['chow', 'Chow', '#f43f5e'], ['hustle', 'Hustle', '#84cc16'], ['bank', 'Bank', '#0ea5e9'], ['wallet', 'Wallet', '#a855f7'], ['gist', 'Gist', '#ec4899'], ['portal', 'Portal', '#6366f1'], ['messages', 'Messages', '#f97316'], ['online', 'Online', '#14b8a6']];
+const APP_ICONS = { room: '🛏️', wardrobe: '👕', missions: '🎯', stories: '📖', map: '🗺️', timetable: '🗓️', keke: '🛺', chow: '🍲', hustle: '💼', bank: '🏦', wallet: '👛', gist: '💬', portal: '🎓', messages: '✉️', online: '🌐' };
 APPS.unshift(['wardrobe', 'Wardrobe', '#a78bfa']);
 APPS.unshift(['room', 'My Room', '#f59e0b']);
 let avatarRotation = 0;
@@ -580,24 +683,28 @@ function atOwnHome() {
   const home = locById(state.residence);
   return !!home && Math.hypot(player.position.x - home.doorPoint.x, player.position.z - home.doorPoint.z) < 3.2;
 }
-let phoneApp = null, mapTab = 'geographic', geoView = 'region', geoPlace = 'main';
+let phoneApp = null, mapTab = 'campus', geoView = 'region', geoPlace = 'main', renderedPhoneKey = '';
 function togglePhone() { phoneApp ? closePhone() : openPhone(); }
 function openPhone(app = 'home') {
   if (!state || busy) return;
   phoneApp = app;
+  setDock(app === 'room' ? 'home' : app === 'map' ? 'map' : 'phone');
   keys.clear(); joy.x = joy.y = 0; stick.style.transform = '';
   $('phone').classList.remove('hidden');
+  $('phone').classList.toggle('app-home', app === 'home');
   renderPhone();
+  $('phone-screen').scrollTop = 0;
 }
-function closePhone() { phoneApp = null; $('phone').classList.add('hidden'); }
+function closePhone() { phoneApp = null; $('phone').classList.add('hidden'); setDock(panelOpen && INTERIORS[panelLoc?.actions] ? 'home' : 'map'); }
 function renderPhone() {
+  $('phone').classList.toggle('app-home', phoneApp === 'home');
   const scr = $('phone-screen');
   const head = (t) => `<div class="ph-head"><button class="ph-back" data-app="home" aria-label="Back">‹</button><b>${t}</b></div>`;
   const fac = FACULTIES[state.faculty].name;
   $('phone-time').textContent = fmtTime(state.minutes);
   let h = '';
   if (phoneApp === 'home') {
-    h = `<div class="ph-greet">Hi ${esc(state.name)}<small>${esc(state.dept)} · ${fac}</small></div><div class="ph-grid">${APPS.map(([id, n, c]) => `<button class="ph-app" data-app="${id}"><i style="background:${c}">${n[0]}</i>${n}</button>`).join('')}</div>`;
+    h = `<div class="ph-greet">Hi ${esc(state.name)}<small>${esc(state.dept)} · ${fac}</small></div><div class="ph-grid">${APPS.map(([id, n, c]) => `<button class="ph-app" data-app="${id}"><i aria-hidden="true" style="--app-color:${c}">${APP_ICONS[id]}</i>${n}</button>`).join('')}</div>`;
   } else if (phoneApp === 'room') {
     const room = ensureRoom(state), home = atOwnHome(), L = locById(state.residence), A = AREAS.find((x) => x.id === state.residence);
     const name = L?.name || `${A?.name || 'Your'} lodge`;
@@ -610,7 +717,7 @@ function renderPhone() {
       WALL_COLOURS.map((w) => `<button data-room-wall="${w.id}" class="${room.wall === w.id ? 'on' : ''}" aria-pressed="${room.wall === w.id}" ${disabled}><i class="skin-swatch" style="background:${w.color}"></i>${w.name}</button>`).join('') +
       '</div><h3 class="ph-section">Layout · free</h3><div class="ph-chips">' +
       ROOM_LAYOUTS.map((l) => `<button data-room-layout="${l.id}" class="${room.layout === l.id ? 'on' : ''}" aria-pressed="${room.layout === l.id}" ${disabled}>${l.name}</button>`).join('') +
-      '</div><h3 class="ph-section">Furniture shop & storage</h3><div class="ph-chips room-tabs">' +
+      '</div><h3 id="room-shop" class="ph-section">Furniture shop & storage</h3><div class="ph-chips room-tabs">' +
       ROOM_CATEGORIES.map(([id, label]) => `<button data-room-tab="${id}" class="${roomCategory === id ? 'on' : ''}" aria-pressed="${roomCategory === id}">${label}</button>`).join('') + '</div>' +
       FURNITURE.filter((f) => f.kind === roomCategory).map((f) => {
         const owned = room.owned.includes(f.id), placed = room.equipped[f.kind] === f.id;
@@ -700,15 +807,19 @@ function renderPhone() {
   } else if (phoneApp === 'online') {
     h = head('Online') + `<div class="ph-bal">${online ?? '—'}<small>${online ? 'players online now' : 'Single-player mode · live presence unavailable'}</small></div><p class="ph-sub">The static Vercel game works without a presence server. World characters and game messages are simulated, not live player chats. A separately hosted presence server is optional.</p>`;
   } else if (phoneApp === 'map') {
-    h = head('Map') + `<div class="ph-tabs"><button data-tab="geographic" class="${mapTab === 'geographic' ? 'on' : ''}">Geographic map</button><button data-tab="campus" class="${mapTab === 'campus' ? 'on' : ''}">3D directions</button></div>` +
+    h = head('Map') + `<div class="ph-tabs"><button data-tab="campus" class="${mapTab === 'campus' ? 'on' : ''}">Walk here</button><button data-tab="geographic" class="${mapTab === 'geographic' ? 'on' : ''}">Geographic map</button></div>` +
       (mapTab === 'campus'
-        ? '<canvas id="ph-map" width="260" height="300"></canvas><p class="ph-sub">Simplified game layout, not geographic coordinates. Tap a place to get directions. Follow the yellow arrow.</p>'
+        ? '<canvas id="ph-map" width="520" height="600" aria-label="Tap the gameplay map to walk to a spot or building entrance"></canvas><p class="ph-sub">Tap a building to walk to its entrance, or tap an open spot. Yellow = entrances / route. Red = you. Simplified game layout, not geographic coordinates.</p><div id="map-destinations"></div>'
         : mapPanel(geoView, geoPlace, state, AREAS));
   }
   scr.innerHTML = h;
+  const renderKey = phoneApp + (phoneApp === 'map' ? ':' + mapTab : '');
+  if (renderKey !== renderedPhoneKey) scr.scrollTop = 0;
+  renderedPhoneKey = renderKey;
   if (phoneApp === 'wardrobe') drawAvatarPreview($('avatar-preview'), state.appearance, avatarRotation);
   if (phoneApp === 'room') drawRoomPreview($('room-preview'), ensureRoom(state), roomAngle);
   if (phoneApp === 'map' && mapTab === 'campus') drawPhoneMap();
+  if (phoneApp === 'map' && mapTab === 'campus') $('map-destinations').innerHTML = world.locations.map(L => `<button class="ph-row ph-btn" data-walk="${L.id}"><span>Walk to ${esc(L.name)}</span><b>›</b></button>`).join('');
 }
 function applyRewards(list) {
   for (const r of list) { if (r.money) logTx(r.label, r.money); notify(r.msg, 'good'); }
@@ -732,23 +843,22 @@ function drawPhoneMap() {
   g.fillStyle = '#374151';
   g.fillRect(X(-4), Z(-110), X(4) - X(-4), Z(95) - Z(-110));
   for (const rz of ROADS_Z) g.fillRect(X(-92), Z(rz - 4), X(92) - X(-92), Z(rz + 4) - Z(rz - 4));
-  g.font = 'bold 7px system-ui'; g.textAlign = 'center';
+  g.font = 'bold 14px system-ui'; g.textAlign = 'center';
   for (const L of world.locations) {
     g.fillStyle = guide === L ? '#facc15' : mapColor(L);
     g.fillRect(X(L.x - L.w / 2), Z(L.z - L.d / 2), X(L.x + L.w / 2) - X(L.x - L.w / 2), Z(L.z + L.d / 2) - Z(L.z - L.d / 2));
     g.fillStyle = '#fff';
     g.fillText(L.name.replace('Faculty of ', '').replace(' Hostel', '').replace('Old Girls', 'OG').replace('New Girls', 'NG').replace('Old Boys', 'OB').replace('International', 'Intl').replace('Postgraduate', 'PG').replace('Environmental Sciences', 'Env. Sci.').replace('Management Sciences', 'Mgt. Sci.').replace('University ', ''), X(L.x), Z(L.z) + 3);
+    g.fillStyle = '#fde047'; g.fillRect(X(L.doorPoint.x) - 3, Z(L.doorPoint.z) - 3, 6, 6);
   }
+  if (travelRoute.length) { g.strokeStyle = '#fde047'; g.lineWidth = 3; g.beginPath(); g.moveTo(X(player.position.x), Z(player.position.z)); for (const p of travelRoute) g.lineTo(X(p.x), Z(p.z)); g.stroke(); }
   g.fillStyle = '#ef4444'; g.beginPath(); g.arc(X(player.position.x), Z(player.position.z), 4, 0, 7); g.fill();
   c.onclick = (e) => {
     const r = c.getBoundingClientRect();
     const x = ((e.clientX - r.left) / r.width) * 2 * MAP_R - MAP_R, z = ((e.clientY - r.top) / r.height) * 2 * MAP_R - MAP_R;
     const L = world.locations.find((l) => Math.abs(x - l.x) < l.w / 2 + 4 && Math.abs(z - l.z) < l.d / 2 + 4);
-    if (!L) return;
     if (state.away) return toast('Take a keke back to campus first.', 'warn');
-    guideTo(L);
-    closePhone();
-    toast(`Directions set to ${L.name}. Follow the yellow arrow.`);
+    walkTo(L ? L.doorPoint : { x, z }, L);
   };
 }
 $('phone-screen').addEventListener('click', (e) => {
@@ -786,7 +896,7 @@ $('phone-screen').addEventListener('click', (e) => {
   else if (b.dataset.chow) { closePhone(); doAction(chowAction(+b.dataset.chow)); }
   else if (b.dataset.gig) { closePhone(); doAction(GIGS.find((g) => g.id === b.dataset.gig)); }
   else if (b.dataset.bank) bank(b.dataset.bank);
-  else if (b.dataset.guide) { const L = locById(b.dataset.guide); guideTo(L); closePhone(); toast(`Directions set to ${L.name}. Follow the yellow arrow.`); }
+  else if (b.dataset.guide || b.dataset.walk) { const L = locById(b.dataset.guide || b.dataset.walk); if (L) walkTo(L.doorPoint, L); }
   else if (b.dataset.story) {
     if (b.dataset.story === 'quit') { state.story = null; toast('Story abandoned.', 'warn'); }
     else { const S = storyById(b.dataset.story); state.story = { id: S.id, step: 0 }; toast(`Story started: ${S.title}. ${S.steps[0].hint}`, 'good'); }
@@ -852,8 +962,10 @@ function startGame(s, pos, rot) {
   player.position.set(pos[0], 0, pos[1]);
   player.rotation.y = rot;
   cam.yaw = rot - Math.PI;
-  cam.pitch = 0.38;
-  cam.dist = 10;
+  cam.pitch = 1.05;
+  cam.dist = 42;
+  cam.aerial = true;
+  stopTravel();
   if (playerLabel) player.remove(playerLabel);
   playerLabel = makeLabel(state.name, { size: 40, scale: 0.45, depthTest: true, bg: 'rgba(21,128,61,0.8)' });
   playerLabel.position.y = 2.75;
@@ -861,6 +973,8 @@ function startGame(s, pos, rot) {
   $('intro').classList.add('hidden');
   $('hud').classList.remove('hidden');
   $('minimap').classList.remove('hidden');
+  $('navigation-controls').classList.remove('hidden');
+  $('mobile-dock').classList.remove('hidden');
   if (isTouch) jEl.classList.remove('hidden');
   document.activeElement?.blur();
   updateCamera(true);
@@ -871,7 +985,7 @@ function startGame(s, pos, rot) {
   player.visible = !state.away;
   if (state.away) openArea(state.away);
   toast(`Welcome to UniAbuja, ${state.name}!`, 'good');
-  setTimeout(() => toast('Walk onto a glowing yellow ring to enter a building. Press P for your phone: timetable, map and keke.'), 1200);
+  setTimeout(() => toast('Tap a spot to walk there automatically. Open Map for any destination. At a yellow entrance, tap Enter to explore inside.'), 1200);
   setTimeout(() => toast('Your first test is on Day 5. Study at the library and attend lectures!'), 2600);
 }
 
@@ -910,7 +1024,7 @@ updateCamera(true);
 function loop() {
   requestAnimationFrame(loop);
   timer.update();
-  const dt = Math.min(timer.getDelta(), 0.05);
+  const dt = Math.min(timer.getDelta(), 0.1);
   if (state && !busy) {
     advance(state, dt * GAME_MIN_PER_SEC, { running: isRunning && moving }, notify);
     updatePlayer(dt);
@@ -928,7 +1042,7 @@ function loop() {
   for (const r of world.rings) r.scale.setScalar(pulse);
   for (const l of world.labels) {
     const d = camera.position.distanceTo(l.position);
-    l.scale.copy(l.userData.base).multiplyScalar(clamp(d / 45, 0.3, 1));
+    l.scale.copy(l.userData.base).multiplyScalar(clamp(d / 45, 0.3, 1) * (cam.aerial ? 0.6 : 1));
   }
   updateLighting(state ? state.minutes / 60 : 9.5);
   updateCamera();
@@ -945,4 +1059,4 @@ function loop() {
 }
 loop();
 
-if (import.meta.env.DEV) window.__dbg = { player, world, get state() { return state; } };
+if (import.meta.env.DEV) window.__dbg = { player, world, camera, get state() { return state; }, get route() { return travelRoute; } };

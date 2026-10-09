@@ -14,16 +14,29 @@
       <div id="needs"></div>
     </div>
     <canvas id="minimap" width="160" height="160" class="hidden"></canvas>
+    <div id="navigation-controls" class="glass hidden" aria-label="Navigation controls">
+      <button id="map-btn">Map <kbd>M</kbd></button>
+      <button id="camera-btn" aria-pressed="true">Aerial view</button>
+      <button id="zoom-in" aria-label="Zoom in">＋</button><button id="zoom-out" aria-label="Zoom out">−</button>
+    </div>
+    <div id="travel" class="glass hidden"><span id="travel-status" role="status"></span><button id="stop-travel">Stop</button></div>
     <div id="prompt" class="glass hidden"></div>
     <div id="panel" class="glass hidden">
       <h2 id="panel-title"></h2>
       <p id="panel-sub"></p>
+      <div id="panel-interior"></div>
       <div id="panel-actions"></div>
       <button id="panel-close">Leave</button>
     </div>
     <div id="toasts"></div>
     <button id="mission-chip" class="glass hidden"></button>
     <button id="phone-btn" class="glass hidden">Phone <kbd>P</kbd></button>
+    <nav id="mobile-dock" class="hidden" aria-label="Campus apps">
+      <button id="dock-home"><span aria-hidden="true">⌂</span>My Room</button>
+      <button id="dock-buy"><span aria-hidden="true">🛋️</span>Buy</button>
+      <button id="dock-map" class="selected" aria-current="page"><span aria-hidden="true">🗺️</span>Map</button>
+      <button id="dock-phone"><span aria-hidden="true">📱</span>Phone</button>
+    </nav>
     <div id="online" class="glass hidden off">Offline mode</div>
     <div id="guide" class="glass hidden"></div>
     <div id="phone" class="hidden">
@@ -43,7 +56,7 @@
         <select id="residence" aria-label="Where you live"></select>
         <button id="start">New game</button>
         <button id="continue" class="secondary hidden"></button>
-        <p class="hint">WASD / arrows to move · Shift to run · Drag to look · Scroll to zoom · E to enter buildings or chat · P for your phone</p>
+        <p class="hint">Tap a spot or building to walk there · Map / M for destinations · Drag to orbit · + / − to zoom · E to enter · WASD and joystick still work · P for phone</p>
       </div>
     </div>
     <script type="module" src="/src/main.js"></script>

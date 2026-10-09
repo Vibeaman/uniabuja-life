@@ -211,7 +211,7 @@ function addShed(scene, L, out) {
 }
 
 export function buildWorld(scene) {
-  const out = { boxes: [], circles: [], locations: LOCATIONS, rings: [], labels: [], lampMat: null };
+  const out = { boxes: [], circles: [], buildings: [], locations: LOCATIONS, rings: [], labels: [], lampMat: null };
   const noTree = [];
   const pad = (b, p) => ({ minX: b.minX - p, maxX: b.maxX + p, minZ: b.minZ - p, maxZ: b.maxZ + p });
 
@@ -264,10 +264,11 @@ export function buildWorld(scene) {
     }
 
     let top;
+    const building = new THREE.Group(); building.userData.location = L;
     if (L.kind === 'gate') { addGate(scene, L, out); top = L.h + 2; }
     else if (L.kind === 'field') { addField(scene, L, out); top = 5; }
     else if (L.kind === 'shed') { addShed(scene, L, out); top = L.h + 0.5; }
-    else top = addBuilding(scene, L, out);
+    else { top = addBuilding(building, L, out); scene.add(building); out.buildings.push(building); }
     noTree.push(pad({ minX: L.x - L.w / 2, maxX: L.x + L.w / 2, minZ: L.z - L.d / 2, maxZ: L.z + L.d / 2 }, 4));
 
     const label = makeLabel(L.name, { size: 56, scale: 2, depthTest: true });

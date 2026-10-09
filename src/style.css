@@ -145,3 +145,88 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color:
 .geo-detail small { color: #b3c1ce; }
 .geo-detail a, .geo-credit a { color: #86efac; }
 .geo-credit { font-size: 10px; margin: 12px 0; }
+
+/* Reliable, always visible navigation: independent of the phone app grid. */
+#navigation-controls { position: fixed; right: 12px; top: 170px; z-index: 25; display: flex; gap: 4px; padding: 5px; }
+#navigation-controls button, #travel button, .interior-stations button { min-height: 42px; border: 1px solid #67827a; border-radius: 8px; background: #173e32; color: #fff; font: inherit; font-size: 13px; padding: 7px 10px; cursor: pointer; }
+#navigation-controls kbd { opacity: .65; font-size: 10px; }
+#minimap { cursor: pointer; }
+#online { top: 226px; }
+#mission-chip { top: 262px; }
+#travel { position: fixed; bottom: 65px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; z-index: 25; padding: 5px 10px; max-width: 90vw; font-size: 13px; }
+#travel-status { overflow-wrap: anywhere; }
+#fade { z-index: 60; }
+#toasts { z-index: 50; }
+#intro { z-index: 80; }
+#panel { z-index: 30; background: rgba(15, 23, 34, .97); max-height: 90dvh; width: min(560px, 94vw); }
+#panel-interior:empty { display: none; }
+#interior-map { display: block; width: 100%; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+.interior-note { margin: 7px 0; font-size: 12px; color: #bdcfce; }
+.interior-stations { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+#panel-close { position: sticky; bottom: 0; min-height: 44px; }
+button:focus-visible, canvas:focus-visible { outline: 3px solid #fde047; outline-offset: 2px; }
+#phone { width: min(370px, calc(100vw - 16px)); }
+#phone-close { min-height: 36px; min-width: 36px; }
+#phone-screen { min-height: 0; }
+@media (max-width: 640px) {
+  #navigation-controls { top: 116px; right: 10px; max-width: 174px; flex-wrap: wrap; justify-content: center; }
+  #navigation-controls button { padding: 5px 8px; min-height: 38px; font-size: 12px; }
+  #navigation-controls kbd { display: none; }
+  #online { top: 212px; right: 12px; }
+  #mission-chip { top: 250px; left: auto; right: 12px; max-width: 165px; }
+  #phone-btn { top: 205px; left: 12px; }
+  #phone { left: 8px; right: 8px; width: auto; bottom: 8px; height: min(680px, calc(100dvh - 16px)); }
+  #travel { bottom: 115px; }
+  #guide { bottom: 90px; max-width: 90vw; white-space: normal; text-align: center; }
+  #prompt { max-width: 94vw; white-space: normal; text-align: center; }
+  #interact-btn { bottom: 20px; }
+  #joystick { width: 100px; height: 100px; left: 14px; bottom: 14px; }
+}
+
+/* Original campus palette inspired by the supplied rounded HUD / app dock. */
+#hud { background: rgba(250, 253, 249, .94); color: #172d2c; border: 1px solid #fff; border-radius: 24px; box-shadow: 0 5px 24px #173c2929; }
+#money { color: #13865e; background: #e3f4eb; padding: 3px 7px; border-radius: 12px; }
+.need .bar { background: #dbe6df; }
+#gpa-row { color: #3e6252; }
+#minimap { border-radius: 22px; border: 3px solid #f5fff0; }
+#mobile-dock { display: none; }
+#phone { border: 8px solid #151a25; border-radius: 34px; box-shadow: 0 22px 60px #0008; }
+#phone.app-home { background: linear-gradient(150deg, #123e55 0%, #404184 45%, #a45879 75%, #c78144 100%); }
+.app-home .ph-bar { color: #e4f3f6; }
+.app-home #phone-close { color: #fff; }
+.app-home .ph-greet small { color: #d8e9e6; }
+.ph-app { font-weight: 600; text-shadow: 0 1px 3px #0004; }
+.ph-app i { background: linear-gradient(155deg, color-mix(in srgb, var(--app-color) 70%, white), var(--app-color)); box-shadow: inset 0 1px 0 #fff7, 0 4px 10px #0003; font-size: 28px; border-radius: 17px; }
+@media (max-width: 640px) {
+  #hud { width: calc(100vw - 124px); padding: 9px 10px; border-radius: 22px; }
+  #topbar { align-items: center; font-size: 11px; margin-bottom: 5px; }
+  #needs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 9px; }
+  .need { flex-wrap: wrap; gap: 3px; font-size: 10px; margin: 0; }
+  .need .lbl { width: auto; font-size: 9px; }
+  .need .dot { width: 5px; height: 5px; }
+  .need .val { width: auto; margin-left: auto; font-size: 9px; }
+  .need .bar { order: 4; flex: 0 0 100%; height: 4px; }
+  #gpa-row { grid-column: 1 / -1; font-size: 10px; margin-top: 2px; }
+  #exam-badge { grid-column: 1 / -1; font-size: 9px; }
+  #navigation-controls { top: 122px; max-width: 182px; background: rgba(250,253,249,.95); border-radius: 20px; }
+  #navigation-controls button { background: #e3f3e9; color: #173e32; border-color: #bed7c8; }
+  #online { top: 225px; }
+  #mission-chip { top: 260px; font-size: 11px; max-width: 160px; }
+  #phone-btn { top: 150px; font-size: 11px; min-height: 36px; }
+  #mobile-dock { position: fixed; display: grid; grid-template-columns: repeat(4, 1fr); z-index: 35; left: 10px; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); background: #f8fbf7; padding: 7px; border: 1px solid #fff; border-radius: 27px; box-shadow: 0 8px 25px #0003; }
+  #mobile-dock button { min-height: 54px; border-radius: 20px; border: 0; background: none; color: #405251; font: inherit; font-size: 11px; font-weight: 650; cursor: pointer; }
+  #mobile-dock button span { display: block; font-size: 23px; line-height: 27px; }
+  #mobile-dock button.selected { background: #1a3435; color: #fff; }
+  #joystick { bottom: 94px; width: 86px; height: 86px; opacity: .65; }
+  #interact-btn { bottom: 99px; width: 72px; height: 72px; }
+  #prompt { bottom: 205px; font-size: 12px; padding: 8px 13px; }
+  #guide { bottom: 183px; font-size: 11px; }
+  #travel { bottom: 205px; font-size: 11px; }
+  #toasts { bottom: 290px; }
+  #phone { bottom: 89px; height: min(670px, calc(100dvh - 102px)); z-index: 40; }
+  #panel { max-height: calc(100dvh - 102px); top: calc(50% - 40px); padding: 12px; }
+  #panel h2 { font-size: 19px; }
+  .interior-stations button { font-size: 11px; padding: 6px 8px; }
+  .ph-grid { grid-template-columns: repeat(3, 1fr); gap: 15px 10px; }
+  .ph-app i { width: 58px; height: 58px; font-size: 30px; }
+}
