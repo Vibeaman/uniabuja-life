@@ -13,7 +13,7 @@ export function gpa(s) {
 }
 
 export function newState(name, o = {}) {
-  return { name, faculty: o.faculty || 'science', dept: o.dept || 'Computer Science', deptCode: o.deptCode || 'CSC', residence: o.residence || 'hostel-ob', away: null, inbox: [], tx: [], day: 1, minutes: 7 * 60, money: 5000, energy: 85, hunger: 75, social: 60, knowledge: 0, pantry: 2, grades: [], examDone: false, lastAllowanceDay: 1, strike: 0 };
+  return { name, faculty: o.faculty || 'science', dept: o.dept || 'Computer Science', deptCode: o.deptCode || 'CSC', residence: o.residence || 'hostel-ob', away: null, inbox: [], tx: [], day: 1, minutes: 7 * 60, money: 5000, energy: 85, hunger: 75, hygiene: 80, bladder: 80, social: 60, knowledge: 0, pantry: 2, grades: [], examDone: false, lastAllowanceDay: 1, strike: 0 };
 }
 
 function gradeFor(score) {
@@ -61,6 +61,7 @@ function campusEvent(s, notify) {
   } else if (r < 0.2) {
     s.energy = clamp(s.energy - 5, 0, 100);
     s.money -= Math.min(s.money, 200);
+    s.noWaterDay = s.day;
     notify('No water in the hostels today. You bought sachet water and queued at the borehole. −₦200, −5 Energy', 'bad');
   } else if (r < 0.3 && s.money >= 1000) {
     s.money -= 1000;
@@ -80,7 +81,15 @@ export function advance(s, mins, mode = {}, notify = () => {}) {
     const eRate = mode.sleeping ? 0 : mode.running ? 7 : 4;
     s.energy = clamp(s.energy - (eRate + (s.hunger <= 0 ? 6 : 0)) * hrs, 0, 100);
     s.hunger = clamp(s.hunger - (mode.sleeping ? 2.5 : 5) * hrs, 0, 100);
-    s.social = clamp(s.social - 1.5 * hrs, 0, 100);
+    s.social = clamp(s.social - (s.hygiene < 20 ? 3.5 : 1.5) * hrs, 0, 100);
+    s.hygiene = clamp((s.hygiene ?? 80) - (mode.sleeping ? 1 : mode.running ? 5 : 3) * hrs, 0, 100);
+    s.bladder = clamp((s.bladder ?? 80) - (mode.sleeping ? 2 : 7) * hrs, 0, 100);
+    if (s.bladder <= 0) {
+      s.bladder = 100;
+      s.hygiene = clamp(s.hygiene - 40, 0, 100);
+      s.social = clamp(s.social - 15, 0, 100);
+      notify('Ah! You could not hold it any longer. Embarrassing... −15 Social, −40 Hygiene', 'bad');
+    }
     s.minutes += step;
     if (s.minutes >= 1440) {
       s.minutes -= 1440;
@@ -102,6 +111,9 @@ export const ACTIONS = {
   hostel: [
     { label: 'Sleep (8h)', home: true, mins: 480, sleep: true, nepa: true, fx: { energy: 75 } },
     { label: 'Take a nap', home: true, mins: 60, sleep: true, fx: { energy: 14 } },
+    { label: 'Take a bath', home: true, bath: true, mins: 20, cond: (s) => s.noWaterDay !== s.day, condMsg: () => 'No water today. Buy water to bath.', fx: { hygiene: 70 }, msg: 'Fresh! Bucket bath done.' },
+    { label: 'Bath with bought water', home: true, bath: true, mins: 20, cost: 300, fx: { hygiene: 70 }, msg: 'You bought two jerrycans of water and had a proper bath.' },
+    { label: 'Use the toilet', home: true, mins: 10, fx: { bladder: 100 }, msg: 'Relief.' },
     { label: 'Cook noodles', home: true, mins: 30, pantry: -1, fx: { hunger: 30 }, msg: 'Noodles and egg. A classic.' },
     { label: 'Buy noodles at hostel shop', mins: 10, cost: 600, pantry: 1, msg: 'You bought a pack of noodles.' },
     { label: 'Gist with roommates', mins: 60, fx: { social: 15 }, msg: 'Your roommates had gist for days.' },
@@ -130,7 +142,7 @@ export const ACTIONS = {
     { label: 'Tutor junior students', mins: 120, hours: [10, 20], earn: 2500, fx: { knowledge: 3, energy: -10 }, msg: 'Teaching helps you learn too. +₦2,500' },
   ],
   sports: [
-    { label: 'Play football', mins: 90, hours: [6, 20], fx: { energy: -18, hunger: -10, social: 18 }, msg: 'You scored a banger!' },
+    { label: 'Play football', mins: 90, hours: [6, 20], fx: { energy: -18, hunger: -10, social: 18, hygiene: -25 }, msg: 'You scored a banger!' },
     { label: 'Jog round the track', mins: 45, hours: [6, 20], fx: { energy: -8, social: 2 }, msg: 'You feel fit.' },
     { label: 'Watch a match', mins: 60, hours: [16, 20], fx: { social: 12 }, msg: 'Faculty of Law vs Engineering. What a game!' },
   ],
@@ -145,7 +157,12 @@ export const ACTIONS = {
   ],
 };
 
+const PUBLIC_TOILET = { label: 'Use the public toilet', mins: 10, fx: { bladder: 100, hygiene: -3 }, msg: 'The toilet was not the cleanest, but you managed.' };
+for (const k of ['cafeteria', 'library', 'faculty', 'sug', 'sports', 'keke']) ACTIONS[k]?.push(PUBLIC_TOILET);
 const AREA_ACTIONS = [
+  { label: 'Bath at your lodge', home: true, bath: true, mins: 20, cost: 100, fx: { hygiene: 70 }, msg: 'You bought water from the mai ruwa and had a bath.' },
+  { label: 'Use the toilet at your lodge', home: true, mins: 10, fx: { bladder: 100 }, msg: 'Relief.' },
+  { label: 'Use a public toilet', mins: 10, cost: 50, fx: { bladder: 100, hygiene: -3 }, msg: 'Paid ₦50 at the public convenience.' },
   { label: 'Sleep at your lodge (8h)', mins: 480, sleep: true, nepa: true, home: true, fx: { energy: 75 } },
   { label: 'Cook noodles at your lodge', mins: 30, home: true, pantry: -1, fx: { hunger: 30 }, msg: 'Noodles and egg. A classic.' },
   { label: 'Eat at a mama put', mins: 30, hours: [7, 22], cost: 700, fx: { hunger: 40, social: 3 }, msg: 'Cheap and filling.' },
@@ -182,7 +199,8 @@ export function perform(s, a, notify) {
   const h = s.minutes / 60;
   const night = h >= 20 || h < 5;
   const lec = a.lecture ? lectureNow(s) : null;
-  advance(s, a.mins, { sleeping: !!a.sleep }, notify);
+  const queue = a.bath && h >= 6 && h < 9 ? 30 : 0;
+  advance(s, a.mins + queue, { sleeping: !!a.sleep }, notify);
   const fx = { ...(a.fx || {}) };
   let msg = a.msg || (a.sleep ? 'You feel rested.' : `${a.label}: done.`);
   let kind = 'good';
@@ -196,6 +214,7 @@ export function perform(s, a, notify) {
   if (a.earn) s.money += a.earn;
   if (a.pantry) s.pantry += a.pantry;
   if (a.vote) s.votedDay = s.day;
+  if (queue) msg += ' The morning bathroom queue cost you 30 extra minutes.';
   if (lec) { s.attended = s.day + '-' + lec.start; msg = `You attended ${lec.code}. Solid notes taken.`; }
   if (a.test) {
     const score = clamp(Math.round(30 + s.knowledge * 0.6 + (s.energy - 50) * 0.15 + (Math.random() * 16 - 8)), 0, 100);

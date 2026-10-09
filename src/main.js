@@ -170,7 +170,7 @@ let state = null;
 let panelOpen = false, panelLoc = null, busy = false, collapsing = false;
 let moving = false, isRunning = false, walkPhase = 0;
 let nearby = null, promptKey = '';
-const warned = { hunger: false, energy: false };
+const warned = { hunger: false, energy: false, hygiene: false, bladder: false };
 
 function toast(msg, kind = '') {
   if (state) {
@@ -277,7 +277,7 @@ function chat(n) {
   toast(`${n.name}: "${LINES[Math.floor(Math.random() * LINES.length)]}"  (+6 Social)`);
 }
 
-const FX_NAMES = { energy: 'Energy', hunger: 'Food', social: 'Social', knowledge: 'Test prep' };
+const FX_NAMES = { energy: 'Energy', hunger: 'Food', social: 'Social', knowledge: 'Test prep', hygiene: 'Hygiene', bladder: 'Bladder' };
 function describe(a) {
   const parts = [fmtDur(a.mins)];
   if (a.cost) parts.push(`−${fmtMoney(a.cost)}`);
@@ -373,10 +373,14 @@ function checkVitals() {
   if (state.hunger > 10) warned.hunger = false;
   if (state.energy < 15 && !warned.energy) { warned.energy = true; toast("You're exhausted. Head to the hostel and sleep.", 'warn'); }
   if (state.energy > 25) warned.energy = false;
+  if (state.bladder < 20 && !warned.bladder) { warned.bladder = true; toast('You need to ease yourself. Find a toilet fast!', 'warn'); }
+  if (state.bladder > 30) warned.bladder = false;
+  if (state.hygiene < 20 && !warned.hygiene) { warned.hygiene = true; toast('People are holding their nose around you. Go and bath!', 'warn'); }
+  if (state.hygiene > 30) warned.hygiene = false;
 }
 
 // ---------- HUD ----------
-const NEEDS = [['energy', 'Energy', '#facc15'], ['hunger', 'Food', '#fb923c'], ['social', 'Social', '#34d399'], ['knowledge', 'Test prep', '#60a5fa']];
+const NEEDS = [['energy', 'Energy', '#facc15'], ['hunger', 'Food', '#fb923c'], ['social', 'Social', '#34d399'], ['hygiene', 'Hygiene', '#38bdf8'], ['bladder', 'Bladder', '#c084fc'], ['knowledge', 'Test prep', '#60a5fa']];
 $('needs').innerHTML =
   NEEDS.map(([k, label, col]) => `<div class="need"><span class="dot" style="background:${col}"></span><span class="lbl">${label}</span><div class="bar"><div class="fill" id="f-${k}" style="background:${col}"></div></div><span class="val" id="v-${k}"></span></div>`).join('') +
   '<div id="gpa-row"><span id="gpa"></span><span id="pantry"></span></div><div id="exam-badge" class="hidden"></div>';
@@ -471,7 +475,7 @@ const locById = (id) => world.locations.find((L) => L.id === id);
 function migrate(s) {
   s.faculty ??= 'science'; s.dept ??= 'Computer Science'; s.deptCode ??= 'CSC';
   if (!locById(s.residence) && !AREAS.some((A) => A.id === s.residence)) s.residence = 'hostel-ob';
-  s.inbox ??= []; s.tx ??= []; s.away ??= null;
+  s.inbox ??= []; s.tx ??= []; s.away ??= null; s.hygiene ??= 80; s.bladder ??= 80;
 }
 
 function logTx(label, amt) {
